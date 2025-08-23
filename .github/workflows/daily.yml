@@ -60,8 +60,13 @@ jobs:
 
       # ✅ Run AI Agent normally (no --headless argument)
       - name: Run AI Agent
+        env:
+          LINKEDIN_FEED_FIRST_WAIT_MS: "120000"
+          LINKEDIN_LOGIN_NAV_TIMEOUT_MS: "300000"
+          LINKEDIN_DEFAULT_TIMEOUT_MS: "120000"
+          HEADLESS: "true"
         run: |
-          echo "Forcing Playwright headless mode"
+          echo "Using configured timeouts and headless mode"
           python run.py --force
 
       - name: Upload artifacts on failure
