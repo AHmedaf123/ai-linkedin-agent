@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
+from playwright_stealth import stealth_sync
 
 # Configure logging for the module
 logger = logging.getLogger("linkedin-agent")
@@ -129,7 +130,7 @@ class LinkedInPoster:
     }
 
     def __init__(self, email: Optional[str] = None, password: Optional[str] = None,
-                 storage_state_path: str = "storage_state.json",
+                 storage_state_path: str = "linkedin_cookies.json",
                  storage_b64: Optional[str] = None):
         """
         Initializes the LinkedInPoster with credentials and configuration.
@@ -150,13 +151,26 @@ class LinkedInPoster:
 
     def _prepare_storage_state(self) -> Optional[str]:
         """
-        Prepares the storage state file for Playwright context.
-        Always returns None to force fresh login and avoid storage state reuse.
-
-        Returns:
-            Always returns None to force fresh email/password login.
+        Prepare storage state for persistent sessions.
+        - If base64 storage is provided via env/arg, write it to file and use it.
+        - Else if a local storage file exists, use it.
+        - Else return None (first run will log in and save it).
         """
-        logger.info("Skipping storage state to force fresh login")
+        # 1) Base64 provided
+        if self.storage_b64:
+            try:
+                raw = base64.b64decode(self.storage_b64)
+                self.storage_state_path.write_bytes(raw)
+                logger.info(f"Wrote storage state from base64 to {self.storage_state_path}")
+                return str(self.storage_state_path)
+            except Exception as e:
+                logger.warning(f"Failed to decode/write storage_b64: {e}")
+        # 2) File exists locally
+        if self.storage_state_path.exists():
+            logger.info(f"Using existing storage state at {self.storage_state_path}")
+            return str(self.storage_state_path)
+        # 3) Nothing available yet
+        logger.info("No storage state available; will log in and save it after success.")
         return None
 
     def _setup_browser_context(self) -> Page:
@@ -171,9 +185,24 @@ class LinkedInPoster:
         """
         try:
             p = sync_playwright().start()
-            # Hard-lock headless mode and log final launch arguments
+            # Configure browser launch arguments
             browser_args = self.DEFAULT_BROWSER_ARGS.copy()
-            browser_args["headless"] = True  # Hard enforce headless mode
+            # Respect HEADLESS env for local debugging
+            headless_env = os.getenv("HEADLESS", "true").lower() == "true"
+            browser_args["headless"] = headless_env
+
+            # Optional proxy support
+            proxy_server = os.getenv("PROXY") or os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
+            if proxy_server:
+                proxy_cfg = {"server": f"http://{proxy_server}" if not proxy_server.startswith(("http://", "https://", "socks5://")) else proxy_server}
+                proxy_user = os.getenv("PROXY_USER")
+                proxy_pass = os.getenv("PROXY_PASS")
+                if proxy_user and proxy_pass:
+                    proxy_cfg["username"] = proxy_user
+                    proxy_cfg["password"] = proxy_pass
+                browser_args["proxy"] = proxy_cfg
+                logger.info("Proxy configured for browser launch.")
+
             logger.info(f"Final browser launch arguments: {browser_args}")
             self.browser = p.chromium.launch(**browser_args)
 
@@ -191,6 +220,14 @@ class LinkedInPoster:
 
             self.context = self.browser.new_context(**context_args)
             self.page = self.context.new_page()
+
+            # Enable stealth mode (playwright-stealth)
+            try:
+                stealth_sync(self.page)
+                logger.info("playwright-stealth applied.")
+            except Exception as e:
+                logger.warning(f"Failed to apply playwright-stealth: {e}")
+
             # Increase default timeouts to reduce flaky timeouts on slower CI runners
             try:
                 timeout_ms = int(os.getenv("LINKEDIN_DEFAULT_TIMEOUT_MS", "120000"))
@@ -200,34 +237,14 @@ class LinkedInPoster:
             except Exception:
                 pass
 
-            # Add stealth JavaScript to avoid detection
-            self.page.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined,
-                });
-                delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
-                delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-                delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-                
-                // Override plugins
-                Object.defineProperty(navigator, 'plugins', {
-                    get: () => [1, 2, 3, 4, 5],
-                });
-                
-                // Override languages
-                Object.defineProperty(navigator, 'languages', {
-                    get: () => ['en-US', 'en'],
-                });
-                
-                // Override permissions
-                const originalQuery = window.navigator.permissions.query;
-                window.navigator.permissions.query = (parameters) => (
-                    parameters.name === 'notifications' ?
-                        Promise.resolve({ state: Notification.permission }) :
-                        originalQuery(parameters)
-                );
-            """)
-            logger.info("Stealth scripts injected.")
+            # Add minimal fallback stealth JavaScript only if needed (stealth plugin applied above)
+            try:
+                self.page.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                """)
+            except Exception:
+                pass
+            logger.info("Stealth setup complete.")
             return self.page
         except Exception as e:
             self._close_browser() # Ensure cleanup on setup failure
@@ -250,13 +267,13 @@ class LinkedInPoster:
 
         # Centralize login navigation timeout
         try:
-            login_nav_timeout_ms = int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "120000"))
+            login_nav_timeout_ms = int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "300000"))
         except Exception:
-            login_nav_timeout_ms = 120000
+            login_nav_timeout_ms = 300000
         logger.info(f"Login navigation timeout set to {login_nav_timeout_ms} ms")
         
         # Attempt to use existing storage state by navigating directly to feed
-        if False:  # self._prepare_storage_state():
+        if self.storage_state_path.exists() or bool(self.storage_b64):
             logger.info("Attempting direct feed navigation using storage state.")
             self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
             _random_wait(1000, 2000)
@@ -453,17 +470,76 @@ class LinkedInPoster:
         # Click submit
         try:
             self.page.locator('button[type="submit"]').click()
+
+            # Two-stage wait: first 120s (configurable), then apply fallbacks (refresh/new tab), then wait remaining time
             try:
-                self.page.wait_for_url("**/feed/**", timeout=login_nav_timeout_ms)
+                first_wait_ms = int(os.getenv("LINKEDIN_FEED_FIRST_WAIT_MS", "120000"))
+            except Exception:
+                first_wait_ms = 120000
+            remaining_ms = max(10000, login_nav_timeout_ms - first_wait_ms)
+
+            try:
+                # Initial wait for feed URL
+                self.page.wait_for_url("**/feed/**", timeout=first_wait_ms)
             except PlaywrightTimeoutError as e:
-                # Fallback: wait for a key UI element that exists on the feed page
+                logger.warning(f"Did not reach feed within first {first_wait_ms} ms after login, applying fallbacks (refresh/direct feed/new tab). Error: {e}")
+                # Fallback A: Refresh current page
                 try:
-                    self.page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=login_nav_timeout_ms)
-                    logger.info("Feed UI detected despite URL not matching /feed/.")
+                    self.page.reload(wait_until="networkidle")
                 except Exception:
+                    pass
+                _random_wait(500, 1500)
+
+                # Fallback B: Try direct navigation to feed in the same tab
+                try:
+                    self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=30000)
+                except Exception:
+                    pass
+                _random_wait(500, 1500)
+
+                # If still not on feed, try opening feed in a new tab
+                try:
+                    if ("/feed" not in self.page.url) or (self.page.get_by_role("button", name="Start a post", exact=False).count() == 0):
+                        new_page = self.context.new_page()
+                        try:
+                            # Apply stealth to the new page as well
+                            stealth_sync(new_page)
+                        except Exception:
+                            pass
+                        try:
+                            timeout_ms = int(os.getenv("LINKEDIN_DEFAULT_TIMEOUT_MS", "120000"))
+                        except Exception:
+                            timeout_ms = 120000
+                        try:
+                            new_page.set_default_timeout(timeout_ms)
+                            new_page.set_default_navigation_timeout(timeout_ms)
+                        except Exception:
+                            pass
+                        new_page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=30000)
+                        # If feed UI is present on new tab, switch to it
+                        try:
+                            new_page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=15000)
+                            self.page = new_page
+                            logger.info("Switched to new tab with LinkedIn feed.")
+                        except Exception:
+                            try:
+                                new_page.close()
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+                # Final attempt: wait for feed UI with remaining time
+                try:
+                    self.page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=remaining_ms)
+                    logger.info("Feed UI detected after applying fallbacks.")
+                except Exception as final_e:
                     _save_debug_info(self.page, "login_submit_timeout")
-                    raise LinkedInAuthError(f"Failed to reach feed after login within {login_nav_timeout_ms} ms: {e}. Check credentials or network.") from e
-            logger.info("Login form submitted, waiting for feed page.")
+                    raise LinkedInAuthError(
+                        f"Failed to reach feed after login and fallbacks within {login_nav_timeout_ms} ms: {final_e}"
+                    ) from e
+
+            logger.info("Login form submitted; feed detected or fallbacks applied successfully.")
         except Exception as e:
             _save_debug_info(self.page, "login_submit_error")
             raise LinkedInAuthError(f"Error clicking login submit button: {e}") from e
