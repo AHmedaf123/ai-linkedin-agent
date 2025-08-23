@@ -394,9 +394,22 @@ class LinkedInAgent:
     @handled_operation("Email reporting", send_report=True, retry=True)
     def _send_report_email(self, post: dict) -> None:
         """Sends an email report about the posted content."""
-        send_email_report(post, is_draft=not self.enable_post)
-        self.logger.info("Email report sent", extra={"event": "email_report_success"})
-        self.metrics.record_event("email_report_success")
+        # If posting failed, include debug attachments when available
+        attachments = []
+        if not self.posted:
+            for fname in [
+                "before_post_click_screenshot.png",
+                "before_post_click_page.html",
+                "after_post_click_screenshot.png",
+                "after_post_click_page.html",
+                "final_error_state_screenshot.png",
+                "verification_timeout_screenshot.png",
+            ]:
+                if os.path.exists(fname):
+                    attachments.append(fname)
+        send_email_report(post, is_error=not self.posted, is_draft=not self.enable_post, attachments=attachments or None)
+        self.logger.info("Email report sent", extra={"event": "email_report_success", "posted": self.posted})
+        self.metrics.record_event("email_report_success", {"posted": self.posted})
 
     @timed_operation("schedule_update")
     @handled_operation("Schedule update", send_report=True, retry=True)

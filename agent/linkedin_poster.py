@@ -426,12 +426,12 @@ class LinkedInPoster:
             text: The text content to post.
 
         Returns:
-            True if posting was successful.
+            True if posting was successful and verified.
 
         Raises:
             LinkedInError: For any general errors during the posting process.
             LinkedInAuthError: If authentication fails.
-            LinkedInPostError: If the post creation or publishing fails.
+            LinkedInPostError: If the post creation or publishing fails or cannot be verified.
         """
         try:
             self._setup_browser_context()
@@ -439,6 +439,24 @@ class LinkedInPoster:
             self._open_post_composer()
             self._enter_post_content(text)
             self._publish_post()
+
+            # Verify the post appears in the feed by searching for a unique snippet
+            try:
+                # Use first non-empty line without hashtags as snippet
+                lines = [l.strip() for l in text.splitlines() if l.strip()]
+                base_line = next((l for l in lines if not l.strip().startswith('#')), lines[0] if lines else text)
+                snippet = base_line[:80]
+                if len(snippet) < 10:
+                    # Fall back to longer body slice if the first line is too short
+                    snippet = text[:120]
+                # Wait up to 30s for the snippet to appear in the feed after posting
+                self.page.wait_for_selector(f"text={snippet}", timeout=30000)
+                logger.info("Verified post content visible in feed.")
+            except PlaywrightTimeoutError:
+                # Could not confirm presence — treat as failure to avoid false positives
+                _save_debug_info(self.page, "verification_timeout")
+                raise LinkedInPostError("Post verification failed: content not found in feed within timeout.")
+
             return True
         except (LinkedInAuthError, LinkedInPostError, LinkedInError, PlaywrightTimeoutError) as e:
             logger.error(f"Failed to post to LinkedIn: {e}", exc_info=True)
