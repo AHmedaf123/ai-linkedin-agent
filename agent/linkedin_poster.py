@@ -243,11 +243,93 @@ class LinkedInPoster:
             self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
             _random_wait(1000, 2000)
 
-            if "login" not in self.page.url:
+            if "login" not in self.page.url and "checkpoint" not in self.page.url:
                 logger.info("Successfully navigated to feed (logged in via storage state).")
                 return # Successfully logged in via storage state
 
-            logger.warning("Storage state appears to be expired or invalid. Falling back to email/password login.")
+            # If storage leads to a 'Welcome Back' / account chooser, try to continue with the existing session
+            try:
+                welcome_seen = False
+                try:
+                    self.page.get_by_text("Welcome Back", exact=False).wait_for(timeout=2000)
+                    welcome_seen = True
+                except Exception:
+                    # Some locales/pages may not show this text; still try continue buttons if on a login-like URL
+                    welcome_seen = "login" in self.page.url or "checkpoint" in self.page.url
+
+                if welcome_seen:
+                    logger.info("Detected account chooser. Attempting to continue with saved session.")
+                    clicked = False
+
+                    # Strategy 1: Known account-card CSS patterns (first card)
+                    for sel in [
+                        'ul li button.profile-chooser__account',
+                        'ul li .profile-chooser__account button',
+                        'ul.profile-chooser__list li:first-child button',
+                        'ul li:first-child button',
+                        'ul li:first-child a',
+                    ]:
+                        try:
+                            self.page.locator(sel).first.click(timeout=2000)
+                            clicked = True
+                            break
+                        except Exception:
+                            continue
+
+                    # Strategy 2: Use text anchor near "Sign in using another account" to click the previous item
+                    if not clicked:
+                        try:
+                            self.page.get_by_text("Sign in using another account", exact=False).wait_for(timeout=2000)
+                            success = self.page.evaluate("""
+                            () => {
+                              const want = Array.from(document.querySelectorAll('button, a, [role="button"], li, div'))
+                                  .find(n => /Sign in using another account/i.test(n.textContent || ''));
+                              if (!want) return false;
+                              const container = want.closest('li, div');
+                              if (!container) return false;
+                              let prev = container.previousElementSibling;
+                              // If prev has no interactive element, climb to parent and try previous sibling
+                              if (!prev && container.parentElement) prev = container.parentElement.firstElementChild;
+                              if (!prev) return false;
+                              const clickable = prev.querySelector('button, a, [role="button"]') || prev;
+                              clickable.click();
+                              return true;
+                            }
+                            """)
+                            if success:
+                                clicked = True
+                        except Exception:
+                            pass
+
+                    # Strategy 3: Generic 'Continue' / 'Sign in' buttons (fallback)
+                    if not clicked:
+                        for sel in [
+                            'button:has-text("Continue")',
+                            'a:has-text("Continue")',
+                            'button:has-text("Sign in")',
+                            'a:has-text("Sign in")',
+                        ]:
+                            try:
+                                self.page.locator(sel).first.click(timeout=2000)
+                                clicked = True
+                                break
+                            except Exception:
+                                continue
+
+                    if clicked:
+                        self.page.wait_for_url("**/feed/**", timeout=30000)
+                        logger.info("Continued via account chooser and reached feed.")
+                        return
+                    else:
+                        logger.warning("Could not click account card on account chooser; will fall back to form login.")
+            except PlaywrightTimeoutError:
+                # Will fall back to email/password login
+                pass
+            except Exception:
+                # Non-fatal; fall back to email/password login
+                pass
+
+            logger.warning("Storage state did not auto-login; falling back to email/password login.")
 
         # Fallback to email/password login
         if not self.email or not self.password:
@@ -271,9 +353,36 @@ class LinkedInPoster:
         email_selector = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
         password_selector = ':is(input#password, input[name="session_password"], input#session_password)'
 
+        # If the "Welcome Back" screen is shown, click "Sign in using another account"
+        try:
+            self.page.wait_for_selector(email_selector, timeout=5000)
+        except PlaywrightTimeoutError:
+            try:
+                # Try multiple ways to hit the fallback CTA
+                clicked = False
+                try:
+                    self.page.get_by_role("button", name="Sign in using another account", exact=False).click(timeout=3000)
+                    clicked = True
+                except Exception:
+                    pass
+                if not clicked:
+                    try:
+                        self.page.get_by_text("Sign in using another account", exact=False).click(timeout=3000)
+                        clicked = True
+                    except Exception:
+                        pass
+                if clicked:
+                    _random_wait(300, 700)
+                # Wait again for the email field after switching to classic login form
+                self.page.wait_for_selector(email_selector, timeout=30000)
+            except PlaywrightTimeoutError as e:
+                _save_debug_info(self.page, "login_welcome_back_no_email")
+                raise LinkedInAuthError(
+                    "Could not find email field or switch from 'Welcome Back' screen to classic login."
+                ) from e
+
         # Fill email
         try:
-            self.page.wait_for_selector(email_selector, timeout=30000)
             self.page.locator(email_selector).fill(self.email)
             logger.debug("Email field filled.")
         except PlaywrightTimeoutError as e:
