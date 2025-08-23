@@ -1,0 +1,64 @@
+name: Daily LinkedIn Post
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Every 30 minutes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linkedin-posting
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run AI Agent
+        id: run_agent
+        env:
+          LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
+          LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
+          LINKEDIN_STORAGE_B64: ${{ secrets.LINKEDIN_STORAGE_B64 }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+          GITHUB_USERNAME: ${{ secrets.GITHUB_USERNAME }}
+          GH_API_TOKEN: ${{ secrets.GH_API_TOKEN }}
+          ENABLE_POST: ${{ secrets.ENABLE_POST || 'true' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL || 'deepseek/deepseek-r1:free' }}
+        run: python run.py
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug-artifacts
+          path: |
+            post_preview.txt
+            after_click_post.png
+            error_screenshot.png
+            error_page.html
+          retention-days: 5
+
+      - name: Commit state changes
+        if: steps.run_agent.outputs.posted == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add agent/state.json
+          git commit -m "chore(schedule): advance next_post_time to $(cat agent/state.json | jq -r '.next_post_time')"
+          git push

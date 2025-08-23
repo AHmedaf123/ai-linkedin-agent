@@ -1,0 +1,187 @@
+# LinkedIn Content Calendar
+# Defines the weekly content schedule for LinkedIn posts
+
+weekly_schedule:
+  # Monday: GenAI x Drug Discovery (how-to)
+  0:
+    primary_topic: "GenAI for Drug Discovery"
+    subtopics:
+      - "Protein Structure Prediction"
+      - "Drug-Target Interaction"
+      - "Molecular Generation"
+      - "Clinical Trial Optimization"
+    post_type: "how-to"
+    series_length: 5
+
+  # Tuesday: Case Study (mini)
+  1:
+    primary_topic: "AI Case Studies"
+    subtopics:
+      - "Healthcare AI Implementation"
+      - "Financial Services AI"
+      - "Retail AI Solutions"
+      - "Manufacturing AI"
+    post_type: "case-study"
+    series_length: 4
+
+  # Wednesday: MLOps tip
+  2:
+    primary_topic: "MLOps Tips"
+    subtopics:
+      - "Model Versioning"
+      - "Continuous Integration for ML"
+      - "Monitoring ML Systems"
+      - "Feature Stores"
+      - "Model Serving"
+    post_type: "tip"
+    series_length: 5
+
+  # Thursday: Explainability/Interpretability
+  3:
+    primary_topic: "AI Explainability"
+    subtopics:
+      - "SHAP Values"
+      - "LIME Explanations"
+      - "Feature Importance"
+      - "Counterfactual Explanations"
+      - "Model-Agnostic Methods"
+    post_type: "educational"
+    series_length: 5
+
+  # Friday: Tooling/Stack
+  4:
+    primary_topic: "AI Tooling and Stacks"
+    subtopics:
+      - "MLflow"
+      - "Kubeflow"
+      - "TensorFlow Extended"
+      - "PyTorch Lightning"
+      - "Weights & Biases"
+    post_type: "review"
+    series_length: 5
+
+  # Saturday: Personal learning log
+  5:
+    primary_topic: "Personal AI Learning"
+    subtopics:
+      - "New Techniques I'm Exploring"
+      - "Challenges Overcome"
+      - "Interesting Papers"
+      - "Learning Resources"
+    post_type: "reflection"
+    series_length: 4
+
+  # Sunday: Weekly recap
+  6:
+    primary_topic: "Weekly AI Recap"
+    subtopics:
+      - "Top AI News"
+      - "Research Highlights"
+      - "Industry Trends"
+      - "Open Source Updates"
+    post_type: "summary"
+    series_length: 4
+
+# Templates for different post types
+post_templates:
+  how-to:
+    title_template: "How to Use {topic} for {subtopic}"
+    body_template: |
+      🔬 **How to Apply {topic} to {subtopic}** (Part {part}/{total}):
+      
+      Here's a practical approach I've found effective:
+      
+      1️⃣ Start with clear problem definition
+      2️⃣ Prepare your data carefully
+      3️⃣ Select appropriate models
+      4️⃣ Validate results rigorously
+      
+      What challenges have you faced in this area?
+      
+      {hashtags}
+
+  case-study:
+    title_template: "{subtopic}: A Mini Case Study"
+    body_template: |
+      📊 **{subtopic} Case Study** (Part {part}/{total}):
+      
+      🔍 **Challenge**: Implementing AI solutions in complex environments
+      🛠️ **Approach**: Iterative development with stakeholder feedback
+      📈 **Results**: Improved efficiency and novel insights
+      
+      The key lesson: start small, measure carefully, and scale gradually.
+      
+      {hashtags}
+
+  tip:
+    title_template: "MLOps Tip: Mastering {subtopic}"
+    body_template: |
+      💡 **MLOps Tip: {subtopic}** (Part {part}/{total}):
+      
+      One practice that's saved me countless hours:
+      
+      Always implement {subtopic} early in your ML project lifecycle. It's much harder to add later.
+      
+      My favorite tool for this: [relevant tool]
+      
+      What's your go-to approach?
+      
+      {hashtags}
+
+  educational:
+    title_template: "Understanding {subtopic} in AI Explainability"
+    body_template: |
+      🧠 **AI Explainability: {subtopic}** (Part {part}/{total}):
+      
+      Why it matters: Transparent AI builds trust and helps debug models.
+      
+      Key concept: {subtopic} helps us understand how models make decisions by [brief explanation].
+      
+      Implementation tip: [practical advice]
+      
+      {hashtags}
+
+  review:
+    title_template: "{subtopic}: Tool Review"
+    body_template: |
+      🛠️ **Tool Review: {subtopic}** (Part {part}/{total}):
+      
+      I've been using {subtopic} in my AI workflow and here's my take:
+      
+      ✅ Strengths: [key strengths]
+      ⚠️ Limitations: [main limitations]
+      💼 Best for: [ideal use cases]
+      
+      Have you tried it? What was your experience?
+      
+      {hashtags}
+
+  reflection:
+    title_template: "Learning Journey: {subtopic}"
+    body_template: |
+      📚 **Personal Learning: {subtopic}** (Part {part}/{total}):
+      
+      This week I've been exploring {subtopic} and wanted to share some insights:
+      
+      🔑 Key takeaway: [main insight]
+      📖 Resource I found helpful: [resource]
+      🤔 Question I'm still exploring: [question]
+      
+      What are you learning about lately?
+      
+      {hashtags}
+
+  summary:
+    title_template: "Weekly AI Recap: {subtopic}"
+    body_template: |
+      🗓️ **Weekly Recap: {subtopic}** (Part {part}/{total}):
+      
+      This week's highlights in AI:
+      
+      1️⃣ [Key development 1]
+      2️⃣ [Key development 2]
+      3️⃣ [Key development 3]
+      
+      What caught your attention in AI this week?
+      
+      {hashtags}

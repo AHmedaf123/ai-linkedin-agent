@@ -1,0 +1,483 @@
+import os
+import time
+import random
+import base64
+import json
+import logging
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
+
+# Configure logging for the module
+logger = logging.getLogger("linkedin-agent")
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# --- Custom Exceptions ---
+class LinkedInError(Exception):
+    """Base exception for LinkedIn operations."""
+    pass
+
+class LinkedInAuthError(LinkedInError):
+    """Raised when authentication to LinkedIn fails."""
+    pass
+
+class LinkedInPostError(LinkedInError):
+    """Raised when posting content to LinkedIn fails."""
+    pass
+
+# --- Helper Functions (moved outside class for general utility if needed, but primarily used by the class) ---
+def _human_type(page: Page, text: str, min_delay: int = 50, max_delay: int = 150):
+    """
+    Simulates human-like typing with random delays between characters.
+
+    Args:
+        page: The Playwright page object.
+        text: The text string to type.
+        min_delay: Minimum delay between keystrokes in milliseconds.
+        max_delay: Maximum delay between keystrokes in milliseconds.
+    """
+    for char in text:
+        page.keyboard.type(char)
+        time.sleep(random.randint(min_delay, max_delay) / 1000)
+
+def _random_wait(min_ms: int = 500, max_ms: int = 2000):
+    """
+    Pauses execution for a random duration within a specified range.
+
+    Args:
+        min_ms: Minimum wait time in milliseconds.
+        max_ms: Maximum wait time in milliseconds.
+    """
+    time.sleep(random.randint(min_ms, max_ms) / 1000)
+
+def _save_debug_info(page: Page, prefix: str = "error") -> tuple[Optional[str], Optional[str]]:
+    """
+    Captures a screenshot and HTML content of the page for debugging purposes.
+
+    Args:
+        page: The Playwright page object.
+        prefix: A string prefix for the saved file names.
+
+    Returns:
+        A tuple containing paths to the screenshot and HTML file, or (None, None) if saving fails.
+    """
+    try:
+        screenshot_path = f"{prefix}_screenshot.png"
+        page.screenshot(path=screenshot_path)
+        logger.info(f"Saved screenshot to {screenshot_path}")
+
+        html_path = f"{prefix}_page.html"
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(page.content())
+        logger.info(f"Saved HTML content to {html_path}")
+        return screenshot_path, html_path
+    except Exception as e:
+        logger.error(f"Failed to save debug info: {e}", exc_info=True)
+        return None, None
+
+# --- LinkedInPoster Class ---
+class LinkedInPoster:
+    """
+    A class to programmatically post content to LinkedIn using Playwright.
+
+    This class handles browser setup, authentication, and content publishing
+    with enhanced robustness and error handling.
+    """
+
+    DEFAULT_BROWSER_ARGS: Dict[str, Any] = {
+        "headless": True, # Set to False for visual debugging
+        "args": [
+            "--disable-blink-features=AutomationControlled",
+            "--disable-dev-shm-usage",
+            "--no-sandbox",
+            "--disable-web-security",
+            "--disable-features=VizDisplayCompositor",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-extensions-file-access-check",
+            "--disable-extensions",
+            "--disable-plugins-discovery",
+            "--disable-default-apps",
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ]
+    }
+
+    DEFAULT_CONTEXT_ARGS: Dict[str, Any] = {
+        "viewport": {"width": 1366, "height": 768},
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "locale": "en-US",
+        "timezone_id": "America/New_York"
+    }
+
+    def __init__(self, email: Optional[str] = None, password: Optional[str] = None,
+                 storage_state_path: str = "storage_state.json",
+                 storage_b64: Optional[str] = None):
+        """
+        Initializes the LinkedInPoster with credentials and configuration.
+
+        Args:
+            email: LinkedIn account email.
+            password: LinkedIn account password.
+            storage_state_path: Path to save/load Playwright storage state.
+            storage_b64: Base64 encoded storage state content.
+        """
+        self.email = email
+        self.password = password
+        self.storage_state_path = Path(storage_state_path)
+        self.storage_b64 = storage_b64
+        self.browser: Optional[Browser] = None
+        self.context: Optional[BrowserContext] = None
+        self.page: Optional[Page] = None
+
+    def _prepare_storage_state(self) -> Optional[str]:
+        """
+        Prepares the storage state file for Playwright context.
+        Prioritizes existing file, then base64 string, then new_storage_state.json.
+
+        Returns:
+            Path to the storage state file if available, otherwise None.
+        """
+        if self.storage_state_path.exists():
+            logger.info(f"Using existing storage state file: {self.storage_state_path}")
+            return str(self.storage_state_path)
+        
+        # Check for new_storage_state.json which is saved after successful login
+        new_storage_path = Path("new_storage_state.json")
+        if new_storage_path.exists():
+            logger.info(f"Using existing storage state file: {new_storage_path}")
+            # Optionally, rename new_storage_state.json to storage_state.json for consistency
+            try:
+                new_storage_path.rename(self.storage_state_path)
+                logger.info(f"Renamed {new_storage_path} to {self.storage_state_path}")
+                return str(self.storage_state_path)
+            except OSError as e:
+                logger.warning(f"Failed to rename new_storage_state.json: {e}. Using new_storage_state.json directly.")
+                return str(new_storage_path)
+
+        if self.storage_b64:
+            try:
+                storage_data = base64.b64decode(self.storage_b64)
+                self.storage_state_path.write_bytes(storage_data)
+                logger.info("Decoded and saved storage state from base64 string.")
+                return str(self.storage_state_path)
+            except Exception as e:
+                logger.warning(f"Failed to decode base64 storage state: {e}. Will attempt email/password login.", exc_info=True)
+                return None
+        return None
+
+    def _setup_browser_context(self) -> Page:
+        """
+        Sets up the Playwright browser and context, applying stealth scripts.
+
+        Returns:
+            The Playwright Page object.
+
+        Raises:
+            LinkedInError: If Playwright fails to launch or context cannot be created.
+        """
+        try:
+            p = sync_playwright().start()
+            self.browser = p.chromium.launch(**self.DEFAULT_BROWSER_ARGS)
+
+            context_args = self.DEFAULT_CONTEXT_ARGS.copy()
+            initial_storage_state_path = self._prepare_storage_state()
+            if initial_storage_state_path:
+                context_args["storage_state"] = initial_storage_state_path
+                logger.info("Context initialized with provided storage state.")
+            else:
+                logger.info("Context initialized without storage state (will attempt login).")
+
+            self.context = self.browser.new_context(**context_args)
+            self.page = self.context.new_page()
+
+            # Add stealth JavaScript to avoid detection
+            self.page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined,
+                });
+                delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+                delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+                delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+            """)
+            logger.info("Stealth scripts injected.")
+            return self.page
+        except Exception as e:
+            self._close_browser() # Ensure cleanup on setup failure
+            raise LinkedInError(f"Failed to set up browser or context: {e}") from e
+
+    def _login(self) -> None:
+        """
+        Handles the login process to LinkedIn.
+        Attempts direct feed navigation with storage state first, then falls back to credentials.
+
+        Raises:
+            LinkedInAuthError: If authentication fails after all attempts.
+            PlaywrightTimeoutError: If Playwright operations time out during login.
+        """
+        if not self.page:
+            raise LinkedInError("Page not initialized for login.")
+
+        # Attempt to use existing storage state by navigating directly to feed
+        if self._prepare_storage_state():
+            logger.info("Attempting direct feed navigation using storage state.")
+            self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
+            _random_wait(1000, 2000)
+
+            if "login" not in self.page.url:
+                logger.info("Successfully navigated to feed (logged in via storage state).")
+                return # Successfully logged in via storage state
+
+            logger.warning("Storage state appears to be expired or invalid. Falling back to email/password login.")
+
+        # Fallback to email/password login
+        if not self.email or not self.password:
+            raise LinkedInAuthError("Storage state invalid and no email/password provided for login.")
+
+        logger.info("Proceeding with email/password login.")
+        self.page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
+        _random_wait()
+
+        # Fill email
+        try:
+            self.page.locator('input[id="username"]').fill(self.email) # Use fill for direct input
+            logger.debug("Email field filled.")
+        except PlaywrightTimeoutError as e:
+            _save_debug_info(self.page, "login_email_fill_timeout")
+            raise LinkedInAuthError(f"Timeout filling email field during login: {e}") from e
+
+        _random_wait(300, 800)
+
+        # Fill password
+        try:
+            self.page.locator('input[id="password"]').fill(self.password) # Use fill for direct input
+            logger.debug("Password field filled.")
+        except PlaywrightTimeoutError as e:
+            _save_debug_info(self.page, "login_password_fill_timeout")
+            raise LinkedInAuthError(f"Timeout filling password field during login: {e}") from e
+
+        _random_wait(300, 800)
+
+        # Click submit
+        try:
+            self.page.locator('button[type="submit"]').click()
+            self.page.wait_for_url("**/feed/**", timeout=30000)
+            logger.info("Login form submitted, waiting for feed page.")
+        except PlaywrightTimeoutError as e:
+            _save_debug_info(self.page, "login_submit_timeout")
+            raise LinkedInAuthError(f"Timeout waiting for feed page after login: {e}. Check credentials or network.") from e
+        except Exception as e:
+            _save_debug_info(self.page, "login_submit_error")
+            raise LinkedInAuthError(f"Error clicking login submit button: {e}") from e
+
+
+        if "feed" not in self.page.url:
+            _save_debug_info(self.page, "login_failed_final")
+            raise LinkedInAuthError(f"Login failed: Did not reach LinkedIn feed page. Current URL: {self.page.url}")
+
+        logger.info("Successfully logged in to LinkedIn.")
+        _random_wait(1000, 3000)
+
+        # Save new storage state for future use
+        try:
+            if self.context:
+                new_storage_state_path = Path("new_storage_state.json")
+                self.context.storage_state(path=str(new_storage_state_path))
+                logger.info(f"Saved new storage state to {new_storage_state_path} for future use.")
+                # Optionally, replace old storage_state.json with the new one
+                if self.storage_state_path.exists():
+                    self.storage_state_path.unlink() # Delete old state
+                new_storage_state_path.rename(self.storage_state_path) # Rename new state to primary
+                logger.info(f"Updated primary storage state file to {self.storage_state_path}.")
+            else:
+                logger.warning("Context not available, cannot save storage state.")
+        except Exception as e:
+            logger.warning(f"Failed to save new storage state: {e}", exc_info=True)
+
+
+    def _open_post_composer(self) -> None:
+        """
+        Attempts to open the LinkedIn post composer.
+
+        Raises:
+            LinkedInPostError: If the post composer cannot be opened.
+            PlaywrightTimeoutError: If operations time out.
+        """
+        if not self.page:
+            raise LinkedInError("Page not initialized.")
+
+        logger.info("Attempting to open post composer.")
+        # Robustly find and click the 'Start a post' button
+        try:
+            # Prioritize role-based locator
+            self.page.get_by_role("button", name="Start a post", exact=False).click(timeout=10000)
+        except PlaywrightTimeoutError:
+            try:
+                # Fallback to aria-label
+                self.page.locator('button[aria-label*="Start a post"]').click(timeout=10000)
+            except PlaywrightTimeoutError as e:
+                _save_debug_info(self.page, "composer_button_timeout")
+                raise LinkedInPostError(f"Failed to find or click 'Start a post' button: {e}") from e
+            except Exception as e:
+                _save_debug_info(self.page, "composer_button_error")
+                raise LinkedInPostError(f"Error clicking 'Start a post' button (aria-label fallback): {e}") from e
+        except Exception as e:
+            _save_debug_info(self.page, "composer_button_error")
+            raise LinkedInPostError(f"Error clicking 'Start a post' button (role-based): {e}") from e
+
+        # Wait for the composer dialog to appear
+        try:
+            self.page.wait_for_selector('div[role="dialog"]', timeout=15000)
+            logger.info("Post composer opened successfully.")
+        except PlaywrightTimeoutError as e:
+            _save_debug_info(self.page, "composer_dialog_timeout")
+            raise LinkedInPostError(f"Timeout waiting for post composer dialog: {e}") from e
+        _random_wait(500, 1500)
+
+    def _enter_post_content(self, text: str) -> None:
+        """
+        Enters the post content into the composer's editable area.
+
+        Args:
+            text: The text content to post.
+
+        Raises:
+            LinkedInPostError: If the text area cannot be found or filled.
+            PlaywrightTimeoutError: If operations time out.
+        """
+        if not self.page:
+            raise LinkedInError("Page not initialized.")
+
+        logger.info("Entering content into composer.")
+        try:
+            # *** FIX: Use a more specific locator to target the actual textbox ***
+            # The error message indicated: <div role="textbox" ... aria-label="Text editor for creating content">
+            editable_area = self.page.get_by_role("textbox", name="Text editor for creating content")
+            editable_area.click(timeout=10000)
+            _human_type(self.page, text, min_delay=30, max_delay=100)
+            logger.info("Content entered in composer.")
+        except PlaywrightTimeoutError as e:
+            _save_debug_info(self.page, "content_editable_timeout")
+            raise LinkedInPostError(f"Timeout interacting with content editable area: {e}") from e
+        except Exception as e:
+            _save_debug_info(self.page, "content_editable_error")
+            raise LinkedInPostError(f"Error entering content into composer: {e}") from e
+        _random_wait(1000, 2000)
+
+    def _publish_post(self) -> None:
+        """
+        Clicks the 'Post' button and waits for the post to be published.
+
+        Raises:
+            LinkedInPostError: If the 'Post' button cannot be found or the post fails to publish.
+            PlaywrightTimeoutError: If operations time out.
+        """
+        if not self.page:
+            raise LinkedInError("Page not initialized.")
+
+        logger.info("Attempting to publish post.")
+        _save_debug_info(self.page, "before_post_click") # Debug screenshot before click
+
+        try:
+            # Find and click the 'Post' button
+            post_button = self.page.get_by_role("button", name="Post", exact=True)
+            post_button.click(timeout=10000)
+            logger.info("Clicked Post button, waiting for post confirmation/redirection.")
+        except PlaywrightTimeoutError as e:
+            _save_debug_info(self.page, "post_button_click_timeout")
+            raise LinkedInPostError(f"Timeout clicking 'Post' button: {e}") from e
+        except Exception as e:
+            _save_debug_info(self.page, "post_button_click_error")
+            raise LinkedInPostError(f"Error clicking 'Post' button: {e}") from e
+
+        # Wait for the URL to change back to feed or for a success message (more robust approach needed here)
+        # For now, a generous random wait and checking the URL is a start.
+        _random_wait(5000, 10000) # Give time for the post to process and page to update
+
+        _save_debug_info(self.page, "after_post_click") # Debug screenshot after click
+
+        if "feed" in self.page.url:
+            logger.info("Post appears to be published successfully (returned to feed).")
+        else:
+            _save_debug_info(self.page, "post_status_unknown")
+            raise LinkedInPostError(f"Post status uncertain: Did not return to feed page. Current URL: {self.page.url}")
+
+    def _close_browser(self) -> None:
+        """Closes the Playwright browser and context if they are open."""
+        if self.context:
+            try:
+                self.context.close()
+                logger.info("Playwright context closed.")
+            except Exception as e:
+                logger.warning(f"Error closing Playwright context: {e}")
+        if self.browser:
+            try:
+                self.browser.close()
+                logger.info("Playwright browser closed.")
+            except Exception as e:
+                logger.warning(f"Error closing Playwright browser: {e}")
+
+    def post_content(self, text: str) -> bool:
+        """
+        Main entry point to post content to LinkedIn.
+
+        Args:
+            text: The text content to post.
+
+        Returns:
+            True if posting was successful.
+
+        Raises:
+            LinkedInError: For any general errors during the posting process.
+            LinkedInAuthError: If authentication fails.
+            LinkedInPostError: If the post creation or publishing fails.
+        """
+        try:
+            self._setup_browser_context()
+            self._login()
+            self._open_post_composer()
+            self._enter_post_content(text)
+            self._publish_post()
+            return True
+        except (LinkedInAuthError, LinkedInPostError, LinkedInError, PlaywrightTimeoutError) as e:
+            logger.error(f"Failed to post to LinkedIn: {e}", exc_info=True)
+            if self.page:
+                _save_debug_info(self.page, "final_error_state")
+            raise # Re-raise the specific exception
+        finally:
+            self._close_browser()
+
+# --- Example Usage (similar to original function signature) ---
+def post_to_linkedin(text: str) -> bool:
+    """
+    High-level function to post content to LinkedIn.
+
+    Retrieves credentials from environment variables and uses the LinkedInPoster class.
+
+    Args:
+        text: The text content to post.
+
+    Returns:
+        True if posting was successful, False otherwise.
+
+    Raises:
+        RuntimeError: If authentication details are missing or posting fails.
+    """
+    email = os.getenv("LINKEDIN_EMAIL") or os.getenv("LINKEDIN_USER")
+    password = os.getenv("LINKEDIN_PASSWORD") or os.getenv("LINKEDIN_PASS")
+    storage_b64 = os.getenv("LINKEDIN_STORAGE_B64")
+
+    if not any([email and password, Path("storage_state.json").exists(), Path("new_storage_state.json").exists(), storage_b64]):
+        raise RuntimeError(
+            "Missing authentication: Need either existing storage state file (storage_state.json/new_storage_state.json), "
+            "LINKEDIN_STORAGE_B64 environment variable, or both LINKEDIN_EMAIL and LINKEDIN_PASSWORD environment variables."
+        )
+
+    poster = LinkedInPoster(email=email, password=password, storage_b64=storage_b64)
+    try:
+        return poster.post_content(text)
+    except (LinkedInAuthError, LinkedInPostError, LinkedInError) as e:
+        raise RuntimeError(f"LinkedIn posting failed: {e}") from e
+    except PlaywrightTimeoutError as e:
+        raise RuntimeError(f"A Playwright operation timed out during LinkedIn posting: {e}") from e

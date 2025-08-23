@@ -1,0 +1,17 @@
+email:
+  smtp_port: 587
+  smtp_server: smtp.gmail.com
+niches:
+- Generative AI in Drug Discovery
+- Bioinformatics & Computational Biology
+- Molecular Drug Designing using GANs
+- MLOps for AI Projects
+- Deep Learning in Healthcare
+posting:
+  start_time: '11:00'
+  time_increment: 30
+  timezone: Asia/Karachi
+user:
+  name: Muhammad Ahmed
+  persona: AI & Bioinformatics Researcher | Building Generative Models for Drug Discovery
+  voice: Professional but approachable | Insight-driven | AI-focused
