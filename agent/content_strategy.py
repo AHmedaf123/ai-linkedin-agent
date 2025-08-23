@@ -16,6 +16,41 @@ USED_REPOS_PATH = "agent/used_repos.json"
 CONFIG_PATH = "agent/config.yaml"
 CALENDAR_PATH = "agent/calendar.yaml"
 METRICS_HISTORY_PATH = "agent/metrics_history.json"
+NICHE_INDEX_PATH = "agent/niche_index.json"
+
+# --- Round-robin niche helpers ---
+def load_niches_list() -> List[str]:
+    cfg = load_config()
+    niches = cfg.get("niches", [])
+    return [n for n in niches if isinstance(n, str) and n.strip()]
+
+def get_next_niche_round_robin() -> str:
+    niches = load_niches_list()
+    if not niches:
+        return "Artificial Intelligence"
+    # Read current index
+    idx = -1
+    if os.path.exists(NICHE_INDEX_PATH):
+        try:
+            with open(NICHE_INDEX_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                idx = int(data.get("index", -1))
+        except Exception:
+            idx = -1
+    # Advance and wrap
+    idx = (idx + 1) % len(niches)
+    # Persist new index
+    try:
+        with open(NICHE_INDEX_PATH, "w", encoding="utf-8") as f:
+            json.dump({
+                "index": idx,
+                "topic": niches[idx],
+                "niches_count": len(niches),
+                "updated_at": datetime.datetime.now().isoformat()
+            }, f, indent=2)
+    except Exception:
+        pass
+    return niches[idx]
 
 # Post template variations
 POST_TEMPLATES = [
@@ -243,17 +278,26 @@ def get_next_topic_strategy() -> Dict:
             "priority_score": 10  # Highest priority
         }
     
-    # Strategy 2: If it's a specific day of the week, use the calendar topic
+    # Strategy 2: Use niche topics from config (round-robin order) — enforced
+    niches = config.get("niches", [])
+    if niches:
+        next_niche = get_next_niche_round_robin()
+        logger.info("Content strategy: Using niche topic from config (round-robin)")
+        return {
+            "source": "niche",
+            "topic": next_niche,
+            "template": get_best_performing_template(engagement_metrics),
+            "priority_score": 9  # Prefer niches over calendar
+        }
+
+    # Strategy 3: If niches absent, try calendar topic
     weekday = datetime.datetime.now().weekday()
     weekly_schedule = calendar.get("weekly_schedule", {})
-    
     if str(weekday) in weekly_schedule or weekday in weekly_schedule:
         day_key = str(weekday) if str(weekday) in weekly_schedule else weekday
         day_schedule = weekly_schedule[day_key]
-        
         primary_topic = day_schedule.get("primary_topic", "")
         subtopics = day_schedule.get("subtopics", [])
-        
         if primary_topic and subtopics:
             selected_topic = f"{primary_topic}: {random.choice(subtopics)}"
             logger.info(f"Content strategy: Using calendar topic for day {weekday}")
@@ -261,20 +305,9 @@ def get_next_topic_strategy() -> Dict:
                 "source": "calendar",
                 "topic": selected_topic,
                 "template": get_best_performing_template(engagement_metrics),
-                "priority_score": 8  # High priority
+                "priority_score": 8
             }
-    
-    # Strategy 3: Use niche topics from config
-    niches = config.get("niches", [])
-    if niches:
-        logger.info("Content strategy: Using niche topic from config")
-        return {
-            "source": "niche",
-            "topic": random.choice(niches),
-            "template": get_best_performing_template(engagement_metrics),
-            "priority_score": 6  # Medium priority
-        }
-    
+
     # Strategy 4: Fetch trending AI topics as fallback
     trending_topics = fetch_trending_ai_topics()
     if trending_topics:

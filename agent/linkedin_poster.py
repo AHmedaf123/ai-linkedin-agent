@@ -100,6 +100,11 @@ class LinkedInPoster:
             "--disable-extensions",
             "--disable-plugins-discovery",
             "--disable-default-apps",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--disable-features=TranslateUI",
+            "--disable-ipc-flooding-protection",
             "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         ]
     }
@@ -134,37 +139,12 @@ class LinkedInPoster:
     def _prepare_storage_state(self) -> Optional[str]:
         """
         Prepares the storage state file for Playwright context.
-        Prioritizes existing file, then base64 string, then new_storage_state.json.
+        Always returns None to force fresh login and avoid storage state reuse.
 
         Returns:
-            Path to the storage state file if available, otherwise None.
+            Always returns None to force fresh email/password login.
         """
-        if self.storage_state_path.exists():
-            logger.info(f"Using existing storage state file: {self.storage_state_path}")
-            return str(self.storage_state_path)
-        
-        # Check for new_storage_state.json which is saved after successful login
-        new_storage_path = Path("new_storage_state.json")
-        if new_storage_path.exists():
-            logger.info(f"Using existing storage state file: {new_storage_path}")
-            # Optionally, rename new_storage_state.json to storage_state.json for consistency
-            try:
-                new_storage_path.rename(self.storage_state_path)
-                logger.info(f"Renamed {new_storage_path} to {self.storage_state_path}")
-                return str(self.storage_state_path)
-            except OSError as e:
-                logger.warning(f"Failed to rename new_storage_state.json: {e}. Using new_storage_state.json directly.")
-                return str(new_storage_path)
-
-        if self.storage_b64:
-            try:
-                storage_data = base64.b64decode(self.storage_b64)
-                self.storage_state_path.write_bytes(storage_data)
-                logger.info("Decoded and saved storage state from base64 string.")
-                return str(self.storage_state_path)
-            except Exception as e:
-                logger.warning(f"Failed to decode base64 storage state: {e}. Will attempt email/password login.", exc_info=True)
-                return None
+        logger.info("Skipping storage state to force fresh login")
         return None
 
     def _setup_browser_context(self) -> Page:
@@ -219,6 +199,24 @@ class LinkedInPoster:
                 delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
                 delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
                 delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+                
+                // Override plugins
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5],
+                });
+                
+                // Override languages
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en'],
+                });
+                
+                // Override permissions
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                );
             """)
             logger.info("Stealth scripts injected.")
             return self.page
@@ -238,8 +236,11 @@ class LinkedInPoster:
         if not self.page:
             raise LinkedInError("Page not initialized for login.")
 
+        # Skip storage state and use fresh email/password login
+        logger.info("Using fresh email/password login (skipping storage state).")
+        
         # Attempt to use existing storage state by navigating directly to feed
-        if self._prepare_storage_state():
+        if False:  # self._prepare_storage_state():
             logger.info("Attempting direct feed navigation using storage state.")
             self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
             _random_wait(1000, 2000)
@@ -438,21 +439,8 @@ class LinkedInPoster:
         logger.info("Successfully logged in to LinkedIn.")
         _random_wait(1000, 3000)
 
-        # Save new storage state for future use
-        try:
-            if self.context:
-                new_storage_state_path = Path("new_storage_state.json")
-                self.context.storage_state(path=str(new_storage_state_path))
-                logger.info(f"Saved new storage state to {new_storage_state_path} for future use.")
-                # Optionally, replace old storage_state.json with the new one
-                if self.storage_state_path.exists():
-                    self.storage_state_path.unlink() # Delete old state
-                new_storage_state_path.rename(self.storage_state_path) # Rename new state to primary
-                logger.info(f"Updated primary storage state file to {self.storage_state_path}.")
-            else:
-                logger.warning("Context not available, cannot save storage state.")
-        except Exception as e:
-            logger.warning(f"Failed to save new storage state: {e}", exc_info=True)
+        # Skip saving storage state to avoid "new device" notifications
+        logger.info("Skipping storage state save to avoid 'new device' notifications.")
 
 
     def _open_post_composer(self) -> None:

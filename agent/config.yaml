@@ -2,11 +2,16 @@ email:
   smtp_port: 587
   smtp_server: smtp.gmail.com
 niches:
-- Generative AI in Drug Discovery
-- Bioinformatics & Computational Biology
-- Molecular Drug Designing using GANs
-- MLOps for AI Projects
-- Deep Learning in Healthcare
+- Drug Discovery AI
+- Structure-Based Drug Design (SBDD)
+- LLM Fine-tuning
+- Computational Chemistry
+- Deep Learning for Life Sciences
+- Bioinformatics
+- Cheminformatics
+- Molecular Dynamics Simulation
+- Generative Models for Molecules
+- AI for Protein Folding
 posting:
   start_time: '11:00'
   time_increment: 30

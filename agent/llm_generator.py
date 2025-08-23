@@ -5,6 +5,7 @@ import requests
 from typing import Optional, Dict, Any, Tuple, List, Union
 from datetime import datetime
 
+# Assuming these modules exist and are functional
 from .seo_optimizer import optimize_post_full  # ✅ Use new SEO optimizer
 from .backlog_generator import fetch_repo_details
 
@@ -12,18 +13,18 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-r1:free")
 
 PROMPT_CONSTRAINTS = (
-    "Follow these exact constraints for the LinkedIn post:\n"
-    "- Length: 120–200 words, under 1,300 chars.\n"
-    "- Short, scannable lines, 1–2 lines per paragraph.\n"
-    "- Conversational, authoritative, value-driven tone.\n"
-    "- Structure: Hook → Context → Insights → CTA.\n"
-    "- 3–5 hashtags at the end, mix broad + niche.\n"
-    "- @Mentions only when relevant.\n"
-    "- Include domain keywords naturally.\n"
-    "- Avoid heavy Markdown; prefer clean text with breaks."
+    "Follow these constraints for the LinkedIn post:\n"
+    "- Length: 120–200 words, under 1,300 characters.\n"
+    "- Tone: Authoritative, conversational, and deeply insightful.\n"
+    "- Voice: Use first-person perspective ('I'm exploring...', 'We've seen...').\n"
+    "- Structure: Start with an attention-grabbing hook, provide context/insights on a problem, share your unique perspective or solution, and end with a clear CTA.\n"
+    "- Formatting: Use short, punchy paragraphs (1-2 sentences max). Use clean text with line breaks for readability. Do not use heavy markdown like bolding or italics for entire paragraphs.\n"
+    "- Hashtags: 3–5 unique hashtags at the very end. Include a mix of broad, industry-specific, and niche tags.\n"
+    "- Keywords: Naturally embed relevant domain keywords.\n"
 )
 
 def _load_api_key() -> Optional[str]:
+    """Loads the API key from environment variables."""
     api_key = os.getenv("OPENROUTER_API_KEY")
     if api_key:
         return api_key
@@ -31,11 +32,11 @@ def _load_api_key() -> Optional[str]:
         from dotenv import load_dotenv
         load_dotenv()
         return os.getenv("OPENROUTER_API_KEY")
-    except:
+    except ImportError:
         return None
 
 def _postprocess_content(text: str) -> Tuple[str, str, List[str]]:
-    """Extract title, cleaned body, and up to 5 unique hashtags"""
+    """Extracts a title, cleans the body, and gets up to 5 unique hashtags."""
     lines = [l.strip() for l in text.splitlines()]
     title = re.sub(r"^[#*\s]+", "", next((l for l in lines if l), "LinkedIn Update")).strip()
     tags = re.findall(r"(?i)#\w+", text)
@@ -47,32 +48,65 @@ def _postprocess_content(text: str) -> Tuple[str, str, List[str]]:
             seen.add(norm.lower())
         if len(hashtags) >= 5:
             break
-    return title, text.strip(), hashtags
+    
+    # Remove hashtags from the main body of the text
+    body_lines = [line for line in lines if not re.match(r'^\s*#', line)]
+    body = "\n".join(body_lines).strip()
+    return title, body, hashtags
 
 def _build_repo_prompt(repo_info: Dict[str, Any]) -> List[Dict[str, str]]:
-    name, desc = repo_info.get("name", "Repository"), repo_info.get("desc") or "AI-based project."
-    readme, url, topics = repo_info.get("readme") or "", repo_info.get("url", ""), repo_info.get("topics") or []
+    """
+    Builds a detailed prompt for generating a LinkedIn post about a GitHub repository.
+    The prompt is designed to elicit a more human-like, professional tone.
+    """
+    name, desc = repo_info.get("name", "Repository"), repo_info.get("desc") or "an AI-based project."
+    readme_content, url, topics = repo_info.get("readme") or "", repo_info.get("url", ""), repo_info.get("topics") or []
+    
     user_prompt = (
-        "You are a professional AI content creator.\n"
-        "Write a highly engaging, SEO-optimized LinkedIn post for this GitHub repo.\n\n"
-        f"Repo: {name}\nDescription: {desc}\nREADME: {readme}\nTopics: {', '.join(topics)}\nURL: {url}\n\n"
-        "Cover problem solved, features, approach, and direct repo link.\n"
-        "Use 1–2 @mentions if relevant.\n\n" + PROMPT_CONSTRAINTS
+        "You are a professional software engineer and AI researcher. You've just completed a significant project "
+        "and want to share your journey and insights on LinkedIn. "
+        "Craft a compelling LinkedIn post that details the project, the problem it solves, and its key innovations.\n\n"
+        f"**Project Details:**\n"
+        f"Repo Name: {name}\n"
+        f"Description: {desc}\n"
+        f"Topics: {', '.join(topics)}\n"
+        f"URL: {url}\n\n"
+        f"**Project Context:**\n"
+        f"{readme_content}\n\n"
+        "**Instructions:**\n"
+        f"Explain the problem you tackled and why it's important. Describe your unique approach or a core technical insight you gained. "
+        f"End with a call to action that encourages engagement or a check-out of the repo. Do not sound like a generic press release. "
+        f"Make it personal and relatable. Use a genuine, professional tone.\n\n"
+        + PROMPT_CONSTRAINTS
     )
-    return [{"role": "system", "content": "You craft concise, credible, engaging LinkedIn posts."},
-            {"role": "user", "content": user_prompt}]
+    return [
+        {"role": "system", "content": "You are an expert in crafting concise, credible, and genuinely engaging LinkedIn content for professionals."},
+        {"role": "user", "content": user_prompt}
+    ]
 
 def _build_niche_prompt(niche_topic: str) -> List[Dict[str, str]]:
+    """
+    Builds a prompt for a thought-leadership post on a niche topic.
+    The prompt is designed to generate content that sounds like it comes from a subject matter expert.
+    """
     user_prompt = (
-        "You are a thought leader in AI and Drug Discovery.\n"
-        f"Write a professional LinkedIn post about {niche_topic}.\n\n"
-        "Focus on trends, use cases, breakthroughs, and end with a CTA.\n"
-        "Hashtags: 3–5 only, at the very end.\n\n" + PROMPT_CONSTRAINTS
+        "You are a recognized thought leader in the intersection of AI and Drug Discovery. "
+        f"Write a professional LinkedIn post about **{niche_topic}**. "
+        "Focus on an emerging trend, a new use case, or a recent breakthrough in this area. "
+        "The goal is to provide genuine value and establish authority.\n\n"
+        "**Instructions:**\n"
+        "Start with a strong question or statement to hook the reader. Provide context on the current state of the topic. "
+        "Share a specific, forward-looking insight or a potential challenge. Conclude with a clear CTA that invites discussion. "
+        "Do not use generic buzzwords; provide specific examples or concepts that demonstrate deep understanding.\n\n"
+        + PROMPT_CONSTRAINTS
     )
-    return [{"role": "system", "content": "You craft concise, credible, engaging LinkedIn posts."},
-            {"role": "user", "content": user_prompt}]
+    return [
+        {"role": "system", "content": "You are an expert in crafting concise, credible, and genuinely engaging LinkedIn content for professionals."},
+        {"role": "user", "content": user_prompt}
+    ]
 
 def _call_openrouter(messages: List[Dict[str, str]], model: Optional[str] = None, max_tokens: int = 700, temperature: float = 0.7) -> str:
+    """Handles the API call to OpenRouter with retries."""
     api_key = _load_api_key()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
@@ -93,35 +127,22 @@ def _call_openrouter(messages: List[Dict[str, str]], model: Optional[str] = None
             resp = requests.post(OPENROUTER_API_URL, headers=headers, data=json.dumps(payload), timeout=120)
             if resp.status_code < 400:
                 return resp.json()["choices"][0]["message"]["content"].strip()
-        except:
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed: {e}. Retrying...")
             pass
         import time
         time.sleep(1.5 * (attempt + 1))
-
-    raise RuntimeError("OpenRouter request failed")
-
-def _clean_generated_text(text: str) -> str:
-    """Remove labels, visuals, and metadata from LinkedIn posts"""
-    if not text:
-        return ""
-    label_prefix = re.compile(r'^\s*(\*\*)?(\d+\)\s*)?(Hook|Context/Story|Context|Insights/Value|Insights|CTA)\s*(\*\*)?[:\-–—]\s*', re.IGNORECASE)
-    label_only = re.compile(r'^\s*(\*\*)?(\d+\)\s*)?(Hook|Context/Story|Context|Insights/Value|Insights|CTA)\s*(\*\*)?[:\-–—]?\s*$', re.IGNORECASE)
-    cleaned = []
-    for raw in text.splitlines():
-        line = raw.strip()
-        if re.search(r'(?i)Suggested\s+visual', line) or re.search(r'(?i)Character\s*count', line):
-            continue
-        if label_only.match(line):
-            continue
-        line = label_prefix.sub('', line)
-        cleaned.append(line)
-    return "\n".join([l for l in cleaned if l.strip()]).strip()
+    
+    raise RuntimeError("OpenRouter request failed after multiple attempts")
 
 def generate_post(repo: Optional[Union[str, Dict[str, Any]]] = None, niche: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Generates a LinkedIn post based on either a GitHub repository or a niche topic.
+    The final output is optimized for SEO.
+    """
     if not repo and not niche:
-        raise ValueError("Either repo or niche required")
+        raise ValueError("Either 'repo' or 'niche' is required to generate a post.")
 
-    # Build prompt
     if niche:
         messages, topic_hint = _build_niche_prompt(niche), niche
     else:
@@ -130,29 +151,41 @@ def generate_post(repo: Optional[Union[str, Dict[str, Any]]] = None, niche: Opti
             return None
         messages, topic_hint = _build_repo_prompt(repo_info), repo_info.get("name")
 
-    # Generate content
-    text = _call_openrouter(messages)
-    cleaned_text = _clean_generated_text(text or "")
+    try:
+        raw_text = _call_openrouter(messages)
+    except RuntimeError as e:
+        print(f"Error generating content: {e}")
+        return None
+
+    cleaned_text = raw_text or ""
     title, body, hashtags = _postprocess_content(cleaned_text)
 
-    # Fallback content if LLM fails
-    if not body.strip():
-        hashtags = ["#AI", "#MachineLearning"]
-        body = (f"Why {niche} matters now.\n\nOverview: {niche} benefits.\n\nKey insights and quick wins.\n\n"
-                f"What use case are you exploring?\n\n" + " ".join(hashtags))
-        title = f"Deep Dive: {niche}"
-
-    # ✅ Run SEO optimizer with LLM + heuristics
+    # Use the SEO optimizer to refine the final post
     optimized = optimize_post_full(body)
-    optimized_post = optimized["optimized_post"]
-    seo_score = optimized["seo_score"]
-    seo_keywords = optimized["keywords"]
-    seo_hashtags = optimized["hashtags"] or hashtags
+    optimized_post = optimized.get("optimized_post", body)
+    seo_score = optimized.get("seo_score", 0)
+    seo_keywords = optimized.get("keywords", [])
+    seo_hashtags = optimized.get("hashtags", hashtags)
 
     return {
-        "title": title or "LinkedIn Update",
+        "title": title or "Professional Update",
         "body": optimized_post.strip(),
         "seo_score": seo_score,
         "seo_keywords": seo_keywords,
         "hashtags": seo_hashtags
     }
+
+if __name__ == '__main__':
+    # Example usage for a niche topic
+    # Replace 'OPENROUTER_API_KEY' and 'OPENROUTER_MODEL' environment variables
+    # with your actual values to run this.
+    try:
+        post_data = generate_post(niche="AI-driven protein-ligand interaction analysis")
+        if post_data:
+            print("--- Generated LinkedIn Post ---")
+            print(post_data['body'])
+            print(f"\nHashtags: {' '.join(post_data['hashtags'])}")
+            print(f"SEO Score: {post_data['seo_score']}")
+            print(f"Keywords: {', '.join(post_data['seo_keywords'])}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
