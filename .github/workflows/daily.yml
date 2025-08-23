@@ -19,6 +19,8 @@ concurrency:
 jobs:
   post:
     runs-on: ubuntu-latest
+    env:
+      AI_LINKED_INSECRETS: ${{ secrets.AI_LINKED_INSECRETS }}
     steps:
       - uses: actions/checkout@v3
 
@@ -37,9 +39,7 @@ jobs:
         run: python -m playwright install --with-deps
 
       - name: Load packed secrets
-        if: ${{ secrets.AI_LINKED_INSECRETS != '' }}
-        env:
-          AI_LINKED_INSECRETS: ${{ secrets.AI_LINKED_INSECRETS }}
+        if: ${{ env.AI_LINKED_INSECRETS != '' }}
         run: |
           python - <<'PY'
           import os, json, sys
