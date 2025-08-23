@@ -185,9 +185,10 @@ class LinkedInPoster:
             self.page = self.context.new_page()
             # Increase default timeouts to reduce flaky timeouts on slower CI runners
             try:
-                timeout_ms = int(os.getenv("LINKEDIN_DEFAULT_TIMEOUT_MS", "60000"))
+                timeout_ms = int(os.getenv("LINKEDIN_DEFAULT_TIMEOUT_MS", "120000"))
                 self.page.set_default_timeout(timeout_ms)
                 self.page.set_default_navigation_timeout(timeout_ms)
+                logger.info(f"Default Playwright timeouts set to {timeout_ms} ms")
             except Exception:
                 pass
 
@@ -238,6 +239,13 @@ class LinkedInPoster:
 
         # Skip storage state and use fresh email/password login
         logger.info("Using fresh email/password login (skipping storage state).")
+
+        # Centralize login navigation timeout
+        try:
+            login_nav_timeout_ms = int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "120000"))
+        except Exception:
+            login_nav_timeout_ms = 120000
+        logger.info(f"Login navigation timeout set to {login_nav_timeout_ms} ms")
         
         # Attempt to use existing storage state by navigating directly to feed
         if False:  # self._prepare_storage_state():
@@ -320,15 +328,17 @@ class LinkedInPoster:
 
                     if clicked:
                         try:
-                            self.page.wait_for_url("**/feed/**", timeout=int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "60000")))
+                            self.page.wait_for_url("**/feed/**", timeout=login_nav_timeout_ms)
+                            # Ensure the feed UI is interactive
+                            self.page.get_by_role("button", name="Start a post", exact=False).wait_for(state="visible", timeout=login_nav_timeout_ms)
                         except PlaywrightTimeoutError as e:
                             # Fallback: detect feed UI even if URL doesn't update promptly
                             try:
-                                self.page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=20000)
+                                self.page.get_by_role("button", name="Start a post", exact=False).wait_for(state="visible", timeout=login_nav_timeout_ms)
                                 logger.info("Feed UI detected despite URL not matching /feed/.")
                             except Exception:
                                 _save_debug_info(self.page, "account_chooser_feed_timeout")
-                                raise LinkedInAuthError(f"Timeout waiting for feed after account chooser: {e}") from e
+                                raise LinkedInAuthError(f"Failed to detect feed UI after account chooser within {login_nav_timeout_ms} ms: {e}") from e
                         logger.info("Continued via account chooser and reached feed.")
                         return
                     else:
@@ -348,8 +358,27 @@ class LinkedInPoster:
 
         logger.info("Proceeding with email/password login.")
         # Load login page and wait for network to be idle to ensure all UI (e.g., cookie banners) is loaded
-        self.page.goto("https://www.linkedin.com/login", wait_until="networkidle")
+        # Increase navigation timeout for login page load
+        self.page.goto("https://www.linkedin.com/login", wait_until="networkidle", timeout=login_nav_timeout_ms)
         _random_wait()
+
+        # Detect possible security challenges and bail with diagnostics
+        try:
+            challenge_selectors = [
+                '#security-check-challenge',
+                'input[name="captcha"]',
+                'iframe[title*="captcha"]',
+                'text=/Verify your identity/i',
+                'text=/unusual activity/i',
+                'text=/are you a robot/i',
+            ]
+            for sel in challenge_selectors:
+                if self.page.locator(sel).first.count() > 0:
+                    _save_debug_info(self.page, "security_challenge_detected")
+                    raise LinkedInAuthError("LinkedIn security challenge detected; cannot proceed automatically.")
+        except Exception:
+            # Non-fatal — continue; we still handle timeouts later
+            pass
 
         # Dismiss common cookie banners if present (best-effort, non-fatal)
         for label in ["Accept", "Accept cookies", "Allow all", "Agree", "I accept", "Allow essential and optional cookies"]:
@@ -417,15 +446,15 @@ class LinkedInPoster:
         try:
             self.page.locator('button[type="submit"]').click()
             try:
-                self.page.wait_for_url("**/feed/**", timeout=int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "60000")))
+                self.page.wait_for_url("**/feed/**", timeout=login_nav_timeout_ms)
             except PlaywrightTimeoutError as e:
                 # Fallback: wait for a key UI element that exists on the feed page
                 try:
-                    self.page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=20000)
+                    self.page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=login_nav_timeout_ms)
                     logger.info("Feed UI detected despite URL not matching /feed/.")
                 except Exception:
                     _save_debug_info(self.page, "login_submit_timeout")
-                    raise LinkedInAuthError(f"Timeout waiting for feed page after login: {e}. Check credentials or network.") from e
+                    raise LinkedInAuthError(f"Failed to reach feed after login within {login_nav_timeout_ms} ms: {e}. Check credentials or network.") from e
             logger.info("Login form submitted, waiting for feed page.")
         except Exception as e:
             _save_debug_info(self.page, "login_submit_error")
@@ -473,13 +502,15 @@ class LinkedInPoster:
             _save_debug_info(self.page, "composer_button_error")
             raise LinkedInPostError(f"Error clicking 'Start a post' button (role-based): {e}") from e
 
-        # Wait for the composer dialog to appear
+        # Wait for the composer dialog to appear and its textbox to be visible
         try:
-            self.page.wait_for_selector('div[role="dialog"]', timeout=15000)
-            logger.info("Post composer opened successfully.")
+            self.page.wait_for_selector('div[role="dialog"]', timeout=30000)
+            # Ensure the textbox in the dialog is visible; this indicates the UI is interactive
+            self.page.get_by_role("textbox", name="Text editor for creating content").wait_for(state="visible", timeout=30000)
+            logger.info("Post composer opened successfully and editor is visible.")
         except PlaywrightTimeoutError as e:
             _save_debug_info(self.page, "composer_dialog_timeout")
-            raise LinkedInPostError(f"Timeout waiting for post composer dialog: {e}") from e
+            raise LinkedInPostError(f"Timeout waiting for post composer dialog/editor: {e}") from e
         _random_wait(500, 1500)
 
     def _enter_post_content(self, text: str) -> None:
@@ -529,7 +560,7 @@ class LinkedInPoster:
         try:
             # Find and click the 'Post' button
             post_button = self.page.get_by_role("button", name="Post", exact=True)
-            post_button.click(timeout=10000)
+            post_button.click(timeout=login_nav_timeout_ms if 'login_nav_timeout_ms' in locals() else 30000)
             logger.info("Clicked Post button, waiting for post confirmation/redirection.")
         except PlaywrightTimeoutError as e:
             _save_debug_info(self.page, "post_button_click_timeout")
