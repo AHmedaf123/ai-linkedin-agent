@@ -205,8 +205,9 @@ class LinkedInPoster:
             self.page = self.context.new_page()
             # Increase default timeouts to reduce flaky timeouts on slower CI runners
             try:
-                self.page.set_default_timeout(45000)
-                self.page.set_default_navigation_timeout(45000)
+                timeout_ms = int(os.getenv("LINKEDIN_DEFAULT_TIMEOUT_MS", "60000"))
+                self.page.set_default_timeout(timeout_ms)
+                self.page.set_default_navigation_timeout(timeout_ms)
             except Exception:
                 pass
 
@@ -317,7 +318,16 @@ class LinkedInPoster:
                                 continue
 
                     if clicked:
-                        self.page.wait_for_url("**/feed/**", timeout=30000)
+                        try:
+                            self.page.wait_for_url("**/feed/**", timeout=int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "60000")))
+                        except PlaywrightTimeoutError as e:
+                            # Fallback: detect feed UI even if URL doesn't update promptly
+                            try:
+                                self.page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=20000)
+                                logger.info("Feed UI detected despite URL not matching /feed/.")
+                            except Exception:
+                                _save_debug_info(self.page, "account_chooser_feed_timeout")
+                                raise LinkedInAuthError(f"Timeout waiting for feed after account chooser: {e}") from e
                         logger.info("Continued via account chooser and reached feed.")
                         return
                     else:
@@ -405,11 +415,17 @@ class LinkedInPoster:
         # Click submit
         try:
             self.page.locator('button[type="submit"]').click()
-            self.page.wait_for_url("**/feed/**", timeout=30000)
+            try:
+                self.page.wait_for_url("**/feed/**", timeout=int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "60000")))
+            except PlaywrightTimeoutError as e:
+                # Fallback: wait for a key UI element that exists on the feed page
+                try:
+                    self.page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=20000)
+                    logger.info("Feed UI detected despite URL not matching /feed/.")
+                except Exception:
+                    _save_debug_info(self.page, "login_submit_timeout")
+                    raise LinkedInAuthError(f"Timeout waiting for feed page after login: {e}. Check credentials or network.") from e
             logger.info("Login form submitted, waiting for feed page.")
-        except PlaywrightTimeoutError as e:
-            _save_debug_info(self.page, "login_submit_timeout")
-            raise LinkedInAuthError(f"Timeout waiting for feed page after login: {e}. Check credentials or network.") from e
         except Exception as e:
             _save_debug_info(self.page, "login_submit_error")
             raise LinkedInAuthError(f"Error clicking login submit button: {e}") from e
