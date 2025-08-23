@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AI_LINKED_INSECRETS: ${{ secrets.AI_LINKED_INSECRETS }}
+      HEADLESS: true # ✅ Force headless mode globally for Playwright
     steps:
       - uses: actions/checkout@v3
 
@@ -57,8 +58,12 @@ jobs:
                   print(f"{k}={v}", file=f)
           PY
 
+      # ✅ Force Playwright to run headless explicitly
       - name: Run AI Agent
-        run: python run.py --force
+        run: |
+          echo "Forcing Playwright headless mode"
+          export HEADLESS=true
+          python run.py --force --headless
 
       - name: Upload artifacts on failure
         if: failure()
