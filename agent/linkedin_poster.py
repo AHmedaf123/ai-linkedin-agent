@@ -4,6 +4,8 @@ import random
 import base64
 import json
 import logging
+import sys
+import playwright
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -13,6 +15,16 @@ from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page, 
 logger = logging.getLogger("linkedin-agent")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Diagnostic: versions
+try:
+    logger.info(f"Python Version: {sys.version}")
+except Exception:
+    pass
+try:
+    logger.info(f"Playwright Version: {playwright.__version__}")
+except Exception:
+    pass
 
 # --- Custom Exceptions ---
 class LinkedInError(Exception):
@@ -159,14 +171,10 @@ class LinkedInPoster:
         """
         try:
             p = sync_playwright().start()
-            # Allow overriding headless mode via env for easier debugging
+            # Hard-lock headless mode and log final launch arguments
             browser_args = self.DEFAULT_BROWSER_ARGS.copy()
-            try:
-                headless_env = os.getenv("LINKEDIN_HEADLESS")
-                if headless_env is not None:
-                    browser_args["headless"] = str(headless_env).lower() not in ("0", "false", "no")
-            except Exception:
-                pass
+            browser_args["headless"] = True  # Hard enforce headless mode
+            logger.info(f"Final browser launch arguments: {browser_args}")
             self.browser = p.chromium.launch(**browser_args)
 
             context_args = self.DEFAULT_CONTEXT_ARGS.copy()
