@@ -179,9 +179,21 @@ class LinkedInPoster:
         """
         try:
             p = sync_playwright().start()
-            self.browser = p.chromium.launch(**self.DEFAULT_BROWSER_ARGS)
+            # Allow overriding headless mode via env for easier debugging
+            browser_args = self.DEFAULT_BROWSER_ARGS.copy()
+            try:
+                headless_env = os.getenv("LINKEDIN_HEADLESS")
+                if headless_env is not None:
+                    browser_args["headless"] = str(headless_env).lower() not in ("0", "false", "no")
+            except Exception:
+                pass
+            self.browser = p.chromium.launch(**browser_args)
 
             context_args = self.DEFAULT_CONTEXT_ARGS.copy()
+            # Optional: allow timezone override via env
+            tz = os.getenv("POSTING_TIMEZONE") or os.getenv("TZ")
+            if tz:
+                context_args["timezone_id"] = tz
             initial_storage_state_path = self._prepare_storage_state()
             if initial_storage_state_path:
                 context_args["storage_state"] = initial_storage_state_path
@@ -191,6 +203,12 @@ class LinkedInPoster:
 
             self.context = self.browser.new_context(**context_args)
             self.page = self.context.new_page()
+            # Increase default timeouts to reduce flaky timeouts on slower CI runners
+            try:
+                self.page.set_default_timeout(45000)
+                self.page.set_default_navigation_timeout(45000)
+            except Exception:
+                pass
 
             # Add stealth JavaScript to avoid detection
             self.page.add_init_script("""
@@ -236,26 +254,42 @@ class LinkedInPoster:
             raise LinkedInAuthError("Storage state invalid and no email/password provided for login.")
 
         logger.info("Proceeding with email/password login.")
-        self.page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
+        # Load login page and wait for network to be idle to ensure all UI (e.g., cookie banners) is loaded
+        self.page.goto("https://www.linkedin.com/login", wait_until="networkidle")
         _random_wait()
+
+        # Dismiss common cookie banners if present (best-effort, non-fatal)
+        for label in ["Accept", "Accept cookies", "Allow all", "Agree", "I accept", "Allow essential and optional cookies"]:
+            try:
+                self.page.get_by_role("button", name=label, exact=False).click(timeout=1500)
+                _random_wait(200, 400)
+                break
+            except Exception:
+                pass
+
+        # Robust selectors for email/password across LinkedIn variants
+        email_selector = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
+        password_selector = ':is(input#password, input[name="session_password"], input#session_password)'
 
         # Fill email
         try:
-            self.page.locator('input[id="username"]').fill(self.email) # Use fill for direct input
+            self.page.wait_for_selector(email_selector, timeout=30000)
+            self.page.locator(email_selector).fill(self.email)
             logger.debug("Email field filled.")
         except PlaywrightTimeoutError as e:
             _save_debug_info(self.page, "login_email_fill_timeout")
-            raise LinkedInAuthError(f"Timeout filling email field during login: {e}") from e
+            raise LinkedInAuthError(f"Timeout locating/filling email field during login: {e}") from e
 
         _random_wait(300, 800)
 
         # Fill password
         try:
-            self.page.locator('input[id="password"]').fill(self.password) # Use fill for direct input
+            self.page.wait_for_selector(password_selector, timeout=30000)
+            self.page.locator(password_selector).fill(self.password)
             logger.debug("Password field filled.")
         except PlaywrightTimeoutError as e:
             _save_debug_info(self.page, "login_password_fill_timeout")
-            raise LinkedInAuthError(f"Timeout filling password field during login: {e}") from e
+            raise LinkedInAuthError(f"Timeout locating/filling password field during login: {e}") from e
 
         _random_wait(300, 800)
 
