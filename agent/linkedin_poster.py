@@ -596,9 +596,16 @@ class LinkedInPoster:
             try:
                 # Fallback to aria-label
                 self.page.locator('button[aria-label*="Start a post"]').click(timeout=10000)
-            except PlaywrightTimeoutError as e:
-                _save_debug_info(self.page, "composer_button_timeout")
-                raise LinkedInPostError(f"Failed to find or click 'Start a post' button: {e}") from e
+            except PlaywrightTimeoutError:
+                try:
+                    # Fallback: click the share-box trigger container
+                    self.page.locator(':is(div.share-box-feed-entry__trigger, button.share-box-feed-entry__trigger)').first.click(timeout=10000)
+                except PlaywrightTimeoutError as e:
+                    _save_debug_info(self.page, "composer_button_timeout")
+                    raise LinkedInPostError(f"Failed to find or click 'Start a post' button: {e}") from e
+                except Exception as e:
+                    _save_debug_info(self.page, "composer_button_error")
+                    raise LinkedInPostError(f"Error clicking share box trigger: {e}") from e
             except Exception as e:
                 _save_debug_info(self.page, "composer_button_error")
                 raise LinkedInPostError(f"Error clicking 'Start a post' button (aria-label fallback): {e}") from e
@@ -606,11 +613,54 @@ class LinkedInPoster:
             _save_debug_info(self.page, "composer_button_error")
             raise LinkedInPostError(f"Error clicking 'Start a post' button (role-based): {e}") from e
 
-        # Wait for the composer dialog to appear and its textbox to be visible
+        # Wait for the composer UI to appear and an editable textbox to be visible
         try:
-            self.page.wait_for_selector('div[role="dialog"]', timeout=30000)
-            # Ensure the textbox in the dialog is visible; this indicates the UI is interactive
-            self.page.get_by_role("textbox", name="Text editor for creating content").wait_for(state="visible", timeout=30000)
+            # First try the classic dialog overlay
+            dialog_visible = False
+            try:
+                self.page.wait_for_selector('div[role="dialog"]', timeout=20000)
+                dialog_visible = True
+            except PlaywrightTimeoutError:
+                dialog_visible = False
+
+            # Fallback: some accounts open a full-page composer (lithograph). Detect via URL or editor presence.
+            if not dialog_visible:
+                composer_like = (
+                    "lithograph" in (self.page.url or "")
+                    or self.page.locator('div[contenteditable="true"][role="textbox"]').first.count() > 0
+                    or self.page.locator('div[aria-label*="Add to your post"]').first.count() > 0
+                )
+                if not composer_like:
+                    # Give it a bit more time before failing
+                    self.page.wait_for_timeout(5000)
+
+            # Now, robustly wait for any reasonable editor target
+            editor_locators = [
+                # Dialog editor
+                'div[role="dialog"] div[contenteditable="true"][role="textbox"]',
+                'div[role="dialog"] [aria-label*="Text editor"]',
+                'div[role="dialog"] [aria-label*="What do you want"]',
+                'div[role="dialog"] [aria-label*="Add to your post"]',
+                # Full-page composer fallbacks
+                'div[contenteditable="true"][role="textbox"]',
+                '[aria-label*="Text editor for creating content"]',
+                '[aria-label*="What do you want"]',
+                '[aria-label*="Add to your post"]',
+            ]
+
+            editor_found = False
+            for sel in editor_locators:
+                loc = self.page.locator(sel).first
+                try:
+                    loc.wait_for(state="visible", timeout=15000)
+                    editor_found = True
+                    break
+                except Exception:
+                    continue
+
+            if not editor_found:
+                raise PlaywrightTimeoutError("Editor textbox not found via known selectors")
+
             logger.info("Post composer opened successfully and editor is visible.")
         except PlaywrightTimeoutError as e:
             _save_debug_info(self.page, "composer_dialog_timeout")
