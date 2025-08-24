@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import sys
+import re
 import playwright
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -262,6 +263,74 @@ class LinkedInPoster:
             self._close_browser() # Ensure cleanup on setup failure
             raise LinkedInError(f"Failed to set up browser or context: {e}") from e
 
+    def _wait_for_feed_ui(self, timeout: int = 120000) -> None:
+        """
+        Wait for LinkedIn feed UI to be available using multiple possible markers.
+        This reduces brittleness vs relying only on the 'Start a post' button.
+        """
+        if not self.page:
+            raise LinkedInError("Page not initialized.")
+        # Candidate locators that suggest feed/home is ready
+        candidates = [
+            # Post composer triggers
+            'button[aria-label*="Start a post" i]',
+            'button[aria-label*="Create a post" i]',
+            'button:has-text("Start a post")',
+            'button:has-text("Create a post")',
+            # Feed specific containers
+            'div.feed-shared-update-v2',
+            'div.scaffold-finite-scroll__content',
+            'section.scaffold-layout__main',
+            # Nav items present when logged in
+            'a[href*="/feed/"]',
+            'a[href*="/mynetwork/"]',
+        ]
+        # Try to find any of the candidates quickly, looping over a few iterations
+        end = time.time() + (timeout / 1000)
+        last_err = None
+        while time.time() < end:
+            for sel in candidates:
+                try:
+                    if self.page.locator(sel).first.count() > 0:
+                        # Ensure it's visible or at least present
+                        try:
+                            self.page.locator(sel).first.wait_for(state="visible", timeout=2000)
+                        except Exception:
+                            pass
+                        return
+                except Exception as e:
+                    last_err = e
+            # Try also role-based generic check
+            try:
+                self.page.get_by_role("button", name=re.compile("post|share", re.I)).first.wait_for(timeout=2000)
+                return
+            except Exception as e:
+                last_err = e
+            self.page.wait_for_timeout(500)
+        # If we reached here, nothing matched
+        raise PlaywrightTimeoutError(f"Feed UI markers not found within {timeout} ms: {last_err}")
+
+    def _dismiss_common_blockers(self) -> None:
+        """Best-effort clicks to clear cookie/consent/legal blockers."""
+        if not self.page:
+            return
+        labels = [
+            "Accept", "Accept cookies", "Allow all", "Agree", "I agree",
+            "Continue", "Continue to LinkedIn", "Got it", "Close",
+            "Accept and continue", "OK", "Not now", "Skip",
+        ]
+        for label in labels:
+            try:
+                self.page.get_by_role("button", name=label, exact=False).click(timeout=1000)
+                self.page.wait_for_timeout(300)
+            except Exception:
+                continue
+        # Some banners are links
+        try:
+            self.page.get_by_role("link", name=re.compile("Continue|Agree|Accept", re.I)).first.click(timeout=1000)
+        except Exception:
+            pass
+
     def _login(self) -> None:
         """
         Handles the login process to LinkedIn.
@@ -378,12 +447,12 @@ class LinkedInPoster:
                     if clicked:
                         try:
                             self.page.wait_for_url("**/feed/**", timeout=login_nav_timeout_ms)
-                            # Ensure the feed UI is interactive
-                            self.page.get_by_role("button", name="Start a post", exact=False).wait_for(state="visible", timeout=login_nav_timeout_ms)
+                            # Ensure the feed UI is interactive by checking for any feed markers
+                            self._wait_for_feed_ui(timeout=login_nav_timeout_ms)
                         except PlaywrightTimeoutError as e:
                             # Fallback: detect feed UI even if URL doesn't update promptly
                             try:
-                                self.page.get_by_role("button", name="Start a post", exact=False).wait_for(state="visible", timeout=login_nav_timeout_ms)
+                                self._wait_for_feed_ui(timeout=login_nav_timeout_ms)
                                 logger.info("Feed UI detected despite URL not matching /feed/.")
                             except Exception:
                                 _save_debug_info(self.page, "account_chooser_feed_timeout")
@@ -434,14 +503,11 @@ class LinkedInPoster:
             # Non-fatal — continue; we still handle timeouts later
             pass
 
-        # Dismiss common cookie banners if present (best-effort, non-fatal)
-        for label in ["Accept", "Accept cookies", "Allow all", "Agree", "I accept", "Allow essential and optional cookies"]:
-            try:
-                self.page.get_by_role("button", name=label, exact=False).click(timeout=1500)
-                _random_wait(200, 400)
-                break
-            except Exception:
-                pass
+        # Dismiss common cookie/consent banners (best-effort, non-fatal)
+        try:
+            self._dismiss_common_blockers()
+        except Exception:
+            pass
 
         # Robust selectors for email/password across LinkedIn variants
         email_selector = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
@@ -586,7 +652,7 @@ class LinkedInPoster:
 
                 # Final attempt: wait for feed UI with remaining time
                 try:
-                    self.page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=remaining_ms)
+                    self._wait_for_feed_ui(timeout=remaining_ms)
                     logger.info("Feed UI detected after applying fallbacks.")
                 except Exception as final_e:
                     _save_debug_info(self.page, "login_submit_timeout")
@@ -623,30 +689,37 @@ class LinkedInPoster:
             raise LinkedInError("Page not initialized.")
 
         logger.info("Attempting to open post composer.")
-        # Robustly find and click the 'Start a post' button
+        # Robustly find and click the 'Start a post' button (localization-aware)
         try:
-            # Prioritize role-based locator
-            self.page.get_by_role("button", name="Start a post", exact=False).click(timeout=10000)
-        except PlaywrightTimeoutError:
-            try:
-                # Fallback to aria-label
-                self.page.locator('button[aria-label*="Start a post"]').click(timeout=10000)
-            except PlaywrightTimeoutError:
+            # Prefer role-based locators with multiple possible labels
+            labels = [
+                "Start a post", "Create a post", "Post", "Share", "Start post",
+            ]
+            clicked = False
+            for label in labels:
                 try:
-                    # Fallback: click the share-box trigger container
-                    self.page.locator(':is(div.share-box-feed-entry__trigger, button.share-box-feed-entry__trigger)').first.click(timeout=10000)
-                except PlaywrightTimeoutError as e:
-                    _save_debug_info(self.page, "composer_button_timeout")
-                    raise LinkedInPostError(f"Failed to find or click 'Start a post' button: {e}") from e
-                except Exception as e:
-                    _save_debug_info(self.page, "composer_button_error")
-                    raise LinkedInPostError(f"Error clicking share box trigger: {e}") from e
-            except Exception as e:
-                _save_debug_info(self.page, "composer_button_error")
-                raise LinkedInPostError(f"Error clicking 'Start a post' button (aria-label fallback): {e}") from e
+                    self.page.get_by_role("button", name=label, exact=False).first.click(timeout=2000)
+                    clicked = True
+                    break
+                except Exception:
+                    continue
+            if not clicked:
+                # Fallback to aria-label variants
+                aria_loc = self.page.locator('button[aria-label*="post" i], button[aria-label*="Share" i], button[aria-label*="Start a post" i]').first
+                try:
+                    aria_loc.click(timeout=3000)
+                    clicked = True
+                except Exception:
+                    pass
+            if not clicked:
+                # Fallback: click the share-box trigger container
+                self.page.locator(':is(div.share-box-feed-entry__trigger, button.share-box-feed-entry__trigger)').first.click(timeout=5000)
+        except PlaywrightTimeoutError as e:
+            _save_debug_info(self.page, "composer_button_timeout")
+            raise LinkedInPostError(f"Failed to find or click post composer trigger: {e}") from e
         except Exception as e:
             _save_debug_info(self.page, "composer_button_error")
-            raise LinkedInPostError(f"Error clicking 'Start a post' button (role-based): {e}") from e
+            raise LinkedInPostError(f"Error clicking post composer trigger: {e}") from e
 
         # Wait for the composer UI to appear and an editable textbox to be visible
         try:
