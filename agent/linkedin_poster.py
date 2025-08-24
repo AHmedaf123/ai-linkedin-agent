@@ -10,7 +10,19 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
-from playwright_stealth import stealth_sync
+
+# Optional stealth import with graceful fallback
+try:
+    from playwright_stealth import stealth_sync as _stealth_sync
+    def apply_stealth(page: Page) -> None:
+        _stealth_sync(page)
+except Exception:
+    def apply_stealth(page: Page) -> None:
+        # Minimal stealth fallback: hide webdriver flag
+        try:
+            page.add_init_script("Object.defineProperty(navigator, 'webdriver', { get: () => undefined });")
+        except Exception:
+            pass
 
 # Configure logging for the module
 logger = logging.getLogger("linkedin-agent")
@@ -221,12 +233,12 @@ class LinkedInPoster:
             self.context = self.browser.new_context(**context_args)
             self.page = self.context.new_page()
 
-            # Enable stealth mode (playwright-stealth)
+            # Enable stealth mode (playwright-stealth or fallback)
             try:
-                stealth_sync(self.page)
-                logger.info("playwright-stealth applied.")
+                apply_stealth(self.page)
+                logger.info("stealth applied.")
             except Exception as e:
-                logger.warning(f"Failed to apply playwright-stealth: {e}")
+                logger.warning(f"Failed to apply stealth: {e}")
 
             # Increase default timeouts to reduce flaky timeouts on slower CI runners
             try:
@@ -318,7 +330,7 @@ class LinkedInPoster:
                             success = self.page.evaluate("""
                             () => {
                               const want = Array.from(document.querySelectorAll('button, a, [role="button"], li, div'))
-                                  .find(n => /Sign in using another account/i.test(n.textContent || ''));
+                                  .find(n => /(Sign in using|Sign in to) another account/i.test(n.textContent || ''));
                               if (!want) return false;
                               const container = want.closest('li, div');
                               if (!container) return false;
@@ -333,6 +345,14 @@ class LinkedInPoster:
                             """)
                             if success:
                                 clicked = True
+                        except Exception:
+                            pass
+
+                    # Strategy 2.5: Explicit 'Continue as ...' text
+                    if not clicked:
+                        try:
+                            self.page.get_by_text("Continue as", exact=False).click(timeout=2000)
+                            clicked = True
                         except Exception:
                             pass
 
@@ -503,7 +523,7 @@ class LinkedInPoster:
                         new_page = self.context.new_page()
                         try:
                             # Apply stealth to the new page as well
-                            stealth_sync(new_page)
+                            apply_stealth(new_page)
                         except Exception:
                             pass
                         try:
