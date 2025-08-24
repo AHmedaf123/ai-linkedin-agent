@@ -61,6 +61,8 @@ jobs:
       # ✅ Run AI Agent normally (no --headless argument)
       - name: Run AI Agent
         env:
+          LINKEDIN_STORAGE_ONLY: "true"
+          LINKEDIN_STORAGE_B64: ${{ secrets.LINKEDIN_STORAGE_B64 }}
           LINKEDIN_FEED_FIRST_WAIT_MS: "120000"
           LINKEDIN_LOGIN_NAV_TIMEOUT_MS: "300000"
           LINKEDIN_DEFAULT_TIMEOUT_MS: "120000"
