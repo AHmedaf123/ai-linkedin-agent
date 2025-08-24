@@ -447,12 +447,36 @@ class LinkedInPoster:
         email_selector = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
         password_selector = ':is(input#password, input[name="session_password"], input#session_password)'
 
-        # If the "Welcome Back" screen is shown, click "Sign in using another account"
+        # If the "Welcome Back" screen is shown, or guest homepage is shown, route to classic email login
         try:
             self.page.wait_for_selector(email_selector, timeout=5000)
         except PlaywrightTimeoutError:
             try:
-                # Try multiple ways to hit the fallback CTA
+                # First, handle guest homepage variant by clicking Sign in entry points
+                clicked_any = False
+                for sel in [
+                    'button:has-text("Sign in with email")',
+                    'a:has-text("Sign in")',
+                    'button:has-text("Sign in")',
+                    'a[href*="/login"]',
+                    'a[href*="uas/login"]',
+                ]:
+                    try:
+                        self.page.locator(sel).first.click(timeout=2500)
+                        clicked_any = True
+                        _random_wait(300, 700)
+                        break
+                    except Exception:
+                        continue
+                if not clicked_any:
+                    try:
+                        self.page.get_by_role("link", name="Sign in", exact=False).first.click(timeout=2500)
+                        clicked_any = True
+                        _random_wait(300, 700)
+                    except Exception:
+                        pass
+
+                # Also try account-chooser fallback CTA
                 clicked = False
                 try:
                     self.page.get_by_role("button", name="Sign in using another account", exact=False).click(timeout=3000)
@@ -465,14 +489,16 @@ class LinkedInPoster:
                         clicked = True
                     except Exception:
                         pass
-                if clicked:
+
+                if clicked or clicked_any:
                     _random_wait(300, 700)
+
                 # Wait again for the email field after switching to classic login form
                 self.page.wait_for_selector(email_selector, timeout=30000)
             except PlaywrightTimeoutError as e:
                 _save_debug_info(self.page, "login_welcome_back_no_email")
                 raise LinkedInAuthError(
-                    "Could not find email field or switch from 'Welcome Back' screen to classic login."
+                    "Could not find email field or switch to classic login (guest or welcome-back variants)."
                 ) from e
 
         # Fill email
