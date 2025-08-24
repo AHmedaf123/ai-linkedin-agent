@@ -331,6 +331,60 @@ class LinkedInPoster:
         except Exception:
             pass
 
+    def _click_welcome_back_account_card(self) -> bool:
+        """Attempt to click the first account card on the Welcome Back/account chooser page."""
+        if not self.page:
+            return False
+        # Try several structural and text-based strategies
+        strategies = [
+            # Buttons within a container that has "Welcome Back" text
+            'div:has-text("Welcome Back") button',
+            'main:has-text("Welcome Back") button',
+            # General profile chooser known containers
+            'ul li button.profile-chooser__account',
+            'ul li .profile-chooser__account button',
+            'ul.profile-chooser__list li:first-child button',
+            # Generic: first visible button in the chooser area that's NOT the "another account" option
+        ]
+        for sel in strategies:
+            try:
+                loc = self.page.locator(sel).first
+                if loc.count() > 0:
+                    # Ensure we don't click the "another account" option
+                    if "another account" in (loc.inner_text() or "").lower():
+                        continue
+                    loc.click(timeout=1500)
+                    return True
+            except Exception:
+                continue
+        # JavaScript heuristic: click the first clickable card above the "another account" row
+        try:
+            success = self.page.evaluate("""
+            () => {
+              const getVisible = el => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+              const another = Array.from(document.querySelectorAll('*'))
+                 .find(n => /another account/i.test(n.textContent || ''));
+              let root = another ? another.parentElement : document.body;
+              while (root && root.tagName && root.tagName.toLowerCase() !== 'main') {
+                root = root.parentElement;
+              }
+              if (!root) root = document.body;
+              const candidates = Array.from(root.querySelectorAll('button, a, div[role="button"]'))
+                 .filter(getVisible)
+                 .filter(el => !/another account/i.test(el.textContent || ''));
+              if (candidates.length) {
+                 candidates[0].click();
+                 return true;
+              }
+              return false;
+            }
+            """)
+            if success:
+                return True
+        except Exception:
+            pass
+        return False
+
     def _login(self) -> None:
         """
         Handles the login process to LinkedIn.
@@ -381,47 +435,10 @@ class LinkedInPoster:
                     logger.info("Detected account chooser. Attempting to continue with saved session.")
                     clicked = False
 
-                    # Strategy 1: Known account-card CSS patterns (first card)
-                    for sel in [
-                        'ul li button.profile-chooser__account',
-                        'ul li .profile-chooser__account button',
-                        'ul.profile-chooser__list li:first-child button',
-                        'ul li:first-child button',
-                        'ul li:first-child a',
-                    ]:
-                        try:
-                            self.page.locator(sel).first.click(timeout=2000)
-                            clicked = True
-                            break
-                        except Exception:
-                            continue
+                    # Prefer clicking the first account card directly
+                    clicked = self._click_welcome_back_account_card()
 
-                    # Strategy 2: Use text anchor near "Sign in using another account" to click the previous item
-                    if not clicked:
-                        try:
-                            self.page.get_by_text("Sign in using another account", exact=False).wait_for(timeout=2000)
-                            success = self.page.evaluate("""
-                            () => {
-                              const want = Array.from(document.querySelectorAll('button, a, [role="button"], li, div'))
-                                  .find(n => /(Sign in using|Sign in to) another account/i.test(n.textContent || ''));
-                              if (!want) return false;
-                              const container = want.closest('li, div');
-                              if (!container) return false;
-                              let prev = container.previousElementSibling;
-                              // If prev has no interactive element, climb to parent and try previous sibling
-                              if (!prev && container.parentElement) prev = container.parentElement.firstElementChild;
-                              if (!prev) return false;
-                              const clickable = prev.querySelector('button, a, [role="button"]') || prev;
-                              clickable.click();
-                              return true;
-                            }
-                            """)
-                            if success:
-                                clicked = True
-                        except Exception:
-                            pass
-
-                    # Strategy 2.5: Explicit 'Continue as ...' text
+                    # Strategy: Explicit 'Continue as ...' text
                     if not clicked:
                         try:
                             self.page.get_by_text("Continue as", exact=False).click(timeout=2000)
@@ -429,7 +446,7 @@ class LinkedInPoster:
                         except Exception:
                             pass
 
-                    # Strategy 3: Generic 'Continue' / 'Sign in' buttons (fallback)
+                    # Fallback: Generic 'Continue' / 'Sign in' buttons
                     if not clicked:
                         for sel in [
                             'button:has-text("Continue")',
