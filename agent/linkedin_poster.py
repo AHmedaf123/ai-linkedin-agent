@@ -274,8 +274,12 @@ class LinkedInPoster:
         if not self.page:
             raise LinkedInError("Page not initialized for login.")
 
-        # Skip storage state and use fresh email/password login
-        logger.info("Using fresh email/password login (skipping storage state).")
+        # Decide login strategy based on env
+        storage_only = os.getenv("LINKEDIN_STORAGE_ONLY", "false").lower() == "true"
+        if storage_only:
+            logger.info("Login strategy: storage-first with password fallback DISABLED (storage-only mode).")
+        else:
+            logger.info("Login strategy: storage-first with password fallback enabled.")
 
         # Centralize login navigation timeout
         try:
@@ -395,9 +399,14 @@ class LinkedInPoster:
                 # Non-fatal; fall back to email/password login
                 pass
 
-            logger.warning("Storage state did not auto-login; falling back to email/password login.")
+            logger.warning("Storage state did not auto-login.")
+            if storage_only:
+                _save_debug_info(self.page, "storage_login_failed")
+                raise LinkedInAuthError("Storage-only mode enabled and storage session is invalid or requires verification.")
 
-        # Fallback to email/password login
+        # Fallback to email/password login (only if storage_only is False)
+        if storage_only:
+            raise LinkedInAuthError("Storage-only mode enabled but storage did not authenticate.")
         if not self.email or not self.password:
             raise LinkedInAuthError("Storage state invalid and no email/password provided for login.")
 
