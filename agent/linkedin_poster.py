@@ -331,6 +331,46 @@ class LinkedInPoster:
         except Exception:
             pass
 
+    def _handle_legal_interstitials(self) -> bool:
+        """Best-effort handler for legal/interstitial pages (e.g., User Agreement, Privacy Policy).
+        Returns True if we clicked something or navigated that may unblock."""
+        if not self.page:
+            return False
+        acted = False
+        try:
+            url = (self.page.url or "").lower()
+            if "/legal/" in url or "user agreement" in (self.page.title() or "").lower():
+                # Try common action buttons
+                labels = [
+                    "Agree & continue", "Agree and continue", "Accept & continue", "Accept and continue",
+                    "I agree", "Agree", "Accept", "Continue to LinkedIn", "Continue"
+                ]
+                for label in labels:
+                    try:
+                        self.page.get_by_role("button", name=label, exact=False).first.click(timeout=1500)
+                        _random_wait(300, 800)
+                        acted = True
+                        break
+                    except Exception:
+                        continue
+                if not acted:
+                    try:
+                        self.page.get_by_role("link", name=re.compile("Continue|Agree|Accept", re.I)).first.click(timeout=1500)
+                        _random_wait(300, 800)
+                        acted = True
+                    except Exception:
+                        pass
+                # After any action (or even if none), try navigating back to feed
+                try:
+                    self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=30000)
+                    _random_wait(300, 800)
+                    acted = True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return acted
+
     def _click_welcome_back_account_card(self) -> bool:
         """Attempt to click the first account card on the Welcome Back/account chooser page."""
         if not self.page:
@@ -417,9 +457,30 @@ class LinkedInPoster:
             self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
             _random_wait(1000, 2000)
 
-            if "login" not in self.page.url and "checkpoint" not in self.page.url:
-                logger.info("Successfully navigated to feed (logged in via storage state).")
-                return # Successfully logged in via storage state
+            # Handle potential legal interstitials (e.g., User Agreement) that can appear before feed
+            try:
+                self._handle_legal_interstitials()
+            except Exception:
+                pass
+
+            current_url = (self.page.url or "").lower()
+            if "legal" in current_url:
+                logger.info("Legal interstitial detected after storage navigation; attempting to proceed.")
+                try:
+                    if self._handle_legal_interstitials():
+                        _random_wait(400, 900)
+                except Exception:
+                    pass
+                # Do not return yet; continue with further checks
+            elif "login" not in current_url and "checkpoint" not in current_url:
+                try:
+                    # Ensure feed UI is actually interactive
+                    self._wait_for_feed_ui(timeout=15000)
+                    logger.info("Successfully navigated to feed (logged in via storage state).")
+                    return # Successfully logged in via storage state
+                except Exception:
+                    # Continue to additional handling
+                    pass
 
             # If storage leads to a 'Welcome Back' / account chooser, try to continue with the existing session
             try:
@@ -463,6 +524,16 @@ class LinkedInPoster:
 
                     if clicked:
                         try:
+                            # If redirected to legal page after choosing account, handle it first
+                            current_url = (self.page.url or "").lower()
+                            if "legal" in current_url:
+                                logger.info("Legal interstitial detected after account chooser; attempting to proceed.")
+                                try:
+                                    self._handle_legal_interstitials()
+                                    _random_wait(300, 800)
+                                except Exception:
+                                    pass
+                            # Then wait for feed
                             self.page.wait_for_url("**/feed/**", timeout=login_nav_timeout_ms)
                             # Ensure the feed UI is interactive by checking for any feed markers
                             self._wait_for_feed_ui(timeout=login_nav_timeout_ms)
@@ -949,7 +1020,23 @@ def post_to_linkedin(text: str) -> bool:
             "LINKEDIN_STORAGE_B64 environment variable, or both LINKEDIN_EMAIL and LINKEDIN_PASSWORD environment variables."
         )
 
-    poster = LinkedInPoster(email=email, password=password, storage_b64=storage_b64)
+    # Determine the storage file to use if present
+    storage_file_env = os.getenv("LINKEDIN_STORAGE_FILE")
+    storage_path = None
+    try:
+        if storage_file_env and Path(storage_file_env).exists():
+            storage_path = storage_file_env
+        elif Path("new_storage_state.json").exists():
+            storage_path = "new_storage_state.json"
+        elif Path("storage_state.json").exists():
+            storage_path = "storage_state.json"
+        elif Path("linkedin_cookies.json").exists():
+            storage_path = "linkedin_cookies.json"
+    except Exception:
+        storage_path = None
+
+    poster = LinkedInPoster(email=email, password=password, storage_b64=storage_b64,
+                            storage_state_path=storage_path or "linkedin_cookies.json")
     try:
         return poster.post_content(text)
     except (LinkedInAuthError, LinkedInPostError, LinkedInError) as e:
