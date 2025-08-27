@@ -6,7 +6,6 @@ on:
     # 12:00 AM PKT = 19:00 UTC (previous day)
     # 12:00 PM PKT = 07:00 UTC
     - cron: '0 19 * * *'
-    - cron: '0 7 * * *'
   workflow_dispatch: # Allow manual run
 
 permissions:
