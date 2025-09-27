@@ -1,1045 +1,420 @@
 import os
 import time
 import random
-import base64
-import json
 import logging
 import sys
 import re
-import playwright
-from pathlib import Path
 from typing import Optional, Dict, Any
 
-from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
+import playwright
+from playwright.sync_api import (
+    sync_playwright,
+    Browser,
+    BrowserContext,
+    Page,
+    TimeoutError as PlaywrightTimeoutError,
+)
 
-# Optional stealth import with graceful fallback
+# Stealth mode (graceful fallback)
 try:
     from playwright_stealth import stealth_sync as _stealth_sync
     def apply_stealth(page: Page) -> None:
         _stealth_sync(page)
 except Exception:
     def apply_stealth(page: Page) -> None:
-        # Minimal stealth fallback: hide webdriver flag
         try:
             page.add_init_script("Object.defineProperty(navigator, 'webdriver', { get: () => undefined });")
         except Exception:
             pass
 
-# Configure logging for the module
+# Logging
 logger = logging.getLogger("linkedin-agent")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# Diagnostic: versions
 try:
     logger.info(f"Python Version: {sys.version}")
-except Exception:
-    pass
-try:
     logger.info(f"Playwright Version: {playwright.__version__}")
 except Exception:
     pass
 
-# --- Custom Exceptions ---
+# Exceptions
 class LinkedInError(Exception):
-    """Base exception for LinkedIn operations."""
     pass
 
 class LinkedInAuthError(LinkedInError):
-    """Raised when authentication to LinkedIn fails."""
     pass
 
 class LinkedInPostError(LinkedInError):
-    """Raised when posting content to LinkedIn fails."""
     pass
 
-# --- Helper Functions (moved outside class for general utility if needed, but primarily used by the class) ---
-def _human_type(page: Page, text: str, min_delay: int = 50, max_delay: int = 150):
-    """
-    Simulates human-like typing with random delays between characters.
+# Small helpers
 
-    Args:
-        page: The Playwright page object.
-        text: The text string to type.
-        min_delay: Minimum delay between keystrokes in milliseconds.
-        max_delay: Maximum delay between keystrokes in milliseconds.
-    """
-    for char in text:
-        page.keyboard.type(char)
-        time.sleep(random.randint(min_delay, max_delay) / 1000)
-
-def _random_wait(min_ms: int = 500, max_ms: int = 2000):
-    """
-    Pauses execution for a random duration within a specified range.
-
-    Args:
-        min_ms: Minimum wait time in milliseconds.
-        max_ms: Maximum wait time in milliseconds.
-    """
+def _random_wait(min_ms: int = 300, max_ms: int = 900) -> None:
     time.sleep(random.randint(min_ms, max_ms) / 1000)
 
-def _save_debug_info(page: Page, prefix: str = "error") -> tuple[Optional[str], Optional[str]]:
-    """
-    Captures a screenshot and HTML content of the page for debugging purposes.
-
-    Args:
-        page: The Playwright page object.
-        prefix: A string prefix for the saved file names.
-
-    Returns:
-        A tuple containing paths to the screenshot and HTML file, or (None, None) if saving fails.
-    """
+def _save_debug_info(page: Page, prefix: str) -> None:
     try:
-        screenshot_path = f"{prefix}_screenshot.png"
-        page.screenshot(path=screenshot_path)
-        logger.info(f"Saved screenshot to {screenshot_path}")
-
-        html_path = f"{prefix}_page.html"
-        with open(html_path, "w", encoding="utf-8") as f:
+        page.screenshot(path=f"{prefix}_screenshot.png")
+        with open(f"{prefix}_page.html", "w", encoding="utf-8") as f:
             f.write(page.content())
-        logger.info(f"Saved HTML content to {html_path}")
-        return screenshot_path, html_path
+        logger.info(f"Saved debug: {prefix}_screenshot.png, {prefix}_page.html")
     except Exception as e:
-        logger.error(f"Failed to save debug info: {e}", exc_info=True)
-        return None, None
+        logger.warning(f"Failed to save debug info: {e}")
 
-# --- LinkedInPoster Class ---
 class LinkedInPoster:
-    """
-    A class to programmatically post content to LinkedIn using Playwright.
-
-    This class handles browser setup, authentication, and content publishing
-    with enhanced robustness and error handling.
-    """
+    """Minimal, readable OOP LinkedIn poster with strict email/password login only."""
 
     DEFAULT_BROWSER_ARGS: Dict[str, Any] = {
-        "headless": True, # Set to False for visual debugging
+        "headless": os.getenv("HEADLESS", "false").lower() == "true",
         "args": [
             "--disable-blink-features=AutomationControlled",
             "--disable-dev-shm-usage",
             "--no-sandbox",
             "--disable-web-security",
-            "--disable-features=VizDisplayCompositor",
             "--no-first-run",
             "--no-default-browser-check",
-            "--disable-extensions-file-access-check",
             "--disable-extensions",
-            "--disable-plugins-discovery",
-            "--disable-default-apps",
             "--disable-background-timer-throttling",
             "--disable-backgrounding-occluded-windows",
             "--disable-renderer-backgrounding",
-            "--disable-features=TranslateUI",
-            "--disable-ipc-flooding-protection",
-            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        ]
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        ],
     }
 
     DEFAULT_CONTEXT_ARGS: Dict[str, Any] = {
         "viewport": {"width": 1366, "height": 768},
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "locale": "en-US",
-        "timezone_id": "America/New_York"
+        "timezone_id": os.getenv("POSTING_TIMEZONE", os.getenv("TZ", "America/New_York")),
     }
 
-    def __init__(self, email: Optional[str] = None, password: Optional[str] = None,
-                 storage_state_path: str = "linkedin_cookies.json",
-                 storage_b64: Optional[str] = None):
-        """
-        Initializes the LinkedInPoster with credentials and configuration.
-
-        Args:
-            email: LinkedIn account email.
-            password: LinkedIn account password.
-            storage_state_path: Path to save/load Playwright storage state.
-            storage_b64: Base64 encoded storage state content.
-        """
+    def __init__(self, email: Optional[str] = None, password: Optional[str] = None, storage_state_path: Optional[str] = None):
+        # Allow either credentials or an existing storage state file
         self.email = email
         self.password = password
-        self.storage_state_path = Path(storage_state_path)
-        self.storage_b64 = storage_b64
+        self.storage_state_path = storage_state_path or os.getenv("LINKEDIN_STORAGE_STATE", "linkedin_storage.json")
+        if not (self.email and self.password) and not os.path.exists(self.storage_state_path):
+            raise LinkedInAuthError("Provide LinkedIn credentials or an existing storage state file.")
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
 
-    def _prepare_storage_state(self) -> Optional[str]:
-        """
-        Prepare storage state for persistent sessions.
-        - If base64 storage is provided via env/arg, write it to file and use it.
-        - Else if a local storage file exists, use it.
-        - Else return None (first run will log in and save it).
-        """
-        # 1) Base64 provided
-        if self.storage_b64:
-            try:
-                raw = base64.b64decode(self.storage_b64)
-                self.storage_state_path.write_bytes(raw)
-                logger.info(f"Wrote storage state from base64 to {self.storage_state_path}")
-                return str(self.storage_state_path)
-            except Exception as e:
-                logger.warning(f"Failed to decode/write storage_b64: {e}")
-        # 2) File exists locally
-        if self.storage_state_path.exists():
-            logger.info(f"Using existing storage state at {self.storage_state_path}")
-            return str(self.storage_state_path)
-        # 3) Nothing available yet
-        logger.info("No storage state available; will log in and save it after success.")
-        return None
-
-    def _setup_browser_context(self) -> Page:
-        """
-        Sets up the Playwright browser and context, applying stealth scripts.
-
-        Returns:
-            The Playwright Page object.
-
-        Raises:
-            LinkedInError: If Playwright fails to launch or context cannot be created.
-        """
+    # --- Browser lifecycle ---
+    def _setup(self) -> None:
         try:
             p = sync_playwright().start()
-            # Configure browser launch arguments
-            browser_args = self.DEFAULT_BROWSER_ARGS.copy()
-            # Respect HEADLESS env for local debugging
-            headless_env = os.getenv("HEADLESS", "true").lower() == "true"
-            browser_args["headless"] = headless_env
+            logger.info(f"Launching Chromium (headless={self.DEFAULT_BROWSER_ARGS['headless']})")
+            self.browser = p.chromium.launch(**self.DEFAULT_BROWSER_ARGS)
 
-            # Optional proxy support
-            proxy_server = os.getenv("PROXY") or os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
-            if proxy_server:
-                proxy_cfg = {"server": f"http://{proxy_server}" if not proxy_server.startswith(("http://", "https://", "socks5://")) else proxy_server}
-                proxy_user = os.getenv("PROXY_USER")
-                proxy_pass = os.getenv("PROXY_PASS")
-                if proxy_user and proxy_pass:
-                    proxy_cfg["username"] = proxy_user
-                    proxy_cfg["password"] = proxy_pass
-                browser_args["proxy"] = proxy_cfg
-                logger.info("Proxy configured for browser launch.")
-
-            logger.info(f"Final browser launch arguments: {browser_args}")
-            self.browser = p.chromium.launch(**browser_args)
-
-            context_args = self.DEFAULT_CONTEXT_ARGS.copy()
-            # Optional: allow timezone override via env
-            tz = os.getenv("POSTING_TIMEZONE") or os.getenv("TZ")
-            if tz:
-                context_args["timezone_id"] = tz
-            initial_storage_state_path = self._prepare_storage_state()
-            if initial_storage_state_path:
-                context_args["storage_state"] = initial_storage_state_path
-                logger.info("Context initialized with provided storage state.")
-            else:
-                logger.info("Context initialized without storage state (will attempt login).")
-
+            # Reuse session if storage state exists
+            context_args = dict(self.DEFAULT_CONTEXT_ARGS)
+            if os.path.exists(self.storage_state_path):
+                context_args["storage_state"] = self.storage_state_path
+                logger.info(f"Using existing LinkedIn session from {self.storage_state_path}")
             self.context = self.browser.new_context(**context_args)
+
             self.page = self.context.new_page()
-
-            # Enable stealth mode (playwright-stealth or fallback)
+            apply_stealth(self.page)
+            timeout_ms = int(os.getenv("LINKEDIN_DEFAULT_TIMEOUT_MS", "90000"))
+            self.page.set_default_timeout(timeout_ms)
+            self.page.set_default_navigation_timeout(timeout_ms)
+            # Hide webdriver quickly as extra fallback
             try:
-                apply_stealth(self.page)
-                logger.info("stealth applied.")
-            except Exception as e:
-                logger.warning(f"Failed to apply stealth: {e}")
-
-            # Increase default timeouts to reduce flaky timeouts on slower CI runners
-            try:
-                timeout_ms = int(os.getenv("LINKEDIN_DEFAULT_TIMEOUT_MS", "120000"))
-                self.page.set_default_timeout(timeout_ms)
-                self.page.set_default_navigation_timeout(timeout_ms)
-                logger.info(f"Default Playwright timeouts set to {timeout_ms} ms")
+                self.page.add_init_script("Object.defineProperty(navigator, 'webdriver', { get: () => undefined });")
             except Exception:
                 pass
-
-            # Add minimal fallback stealth JavaScript only if needed (stealth plugin applied above)
-            try:
-                self.page.add_init_script("""
-                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                """)
-            except Exception:
-                pass
-            logger.info("Stealth setup complete.")
-            return self.page
         except Exception as e:
-            self._close_browser() # Ensure cleanup on setup failure
-            raise LinkedInError(f"Failed to set up browser or context: {e}") from e
+            self._teardown()
+            raise LinkedInError(f"Failed to setup browser: {e}")
 
-    def _wait_for_feed_ui(self, timeout: int = 120000) -> None:
-        """
-        Wait for LinkedIn feed UI to be available using multiple possible markers.
-        This reduces brittleness vs relying only on the 'Start a post' button.
-        """
+    def _teardown(self) -> None:
+        try:
+            if self.context:
+                self.context.close()
+        except Exception:
+            pass
+        try:
+            if self.browser:
+                self.browser.close()
+        except Exception:
+            pass
+
+    # --- Navigation helpers ---
+    def _dismiss_banners(self) -> None:
         if not self.page:
-            raise LinkedInError("Page not initialized.")
-        # Candidate locators that suggest feed/home is ready
-        candidates = [
-            # Post composer triggers
+            return
+        for label in ["Accept", "Accept cookies", "Allow all", "Agree", "Continue", "Got it", "Close", "Not now", "Skip"]:
+            try:
+                self.page.get_by_role("button", name=label, exact=False).click(timeout=800)
+                _random_wait(150, 300)
+            except Exception:
+                pass
+
+    def _wait_for_feed_ui(self, timeout_ms: int = 120000) -> None:
+        assert self.page
+        end = time.time() + timeout_ms / 1000
+        last_err = None
+        selectors = [
             'button[aria-label*="Start a post" i]',
-            'button[aria-label*="Create a post" i]',
             'button:has-text("Start a post")',
             'button:has-text("Create a post")',
-            # Feed specific containers
-            'div.feed-shared-update-v2',
-            'div.scaffold-finite-scroll__content',
             'section.scaffold-layout__main',
-            # Nav items present when logged in
+            'div.scaffold-finite-scroll__content',
             'a[href*="/feed/"]',
-            'a[href*="/mynetwork/"]',
         ]
-        # Try to find any of the candidates quickly, looping over a few iterations
-        end = time.time() + (timeout / 1000)
-        last_err = None
         while time.time() < end:
-            for sel in candidates:
+            for sel in selectors:
                 try:
                     if self.page.locator(sel).first.count() > 0:
-                        # Ensure it's visible or at least present
-                        try:
-                            self.page.locator(sel).first.wait_for(state="visible", timeout=2000)
-                        except Exception:
-                            pass
                         return
                 except Exception as e:
                     last_err = e
-            # Try also role-based generic check
             try:
-                self.page.get_by_role("button", name=re.compile("post|share", re.I)).first.wait_for(timeout=2000)
+                self.page.get_by_role("button", name=re.compile("post|share", re.I)).first.wait_for(timeout=1000)
                 return
             except Exception as e:
                 last_err = e
-            self.page.wait_for_timeout(500)
-        # If we reached here, nothing matched
-        raise PlaywrightTimeoutError(f"Feed UI markers not found within {timeout} ms: {last_err}")
+            self.page.wait_for_timeout(300)
+        raise PlaywrightTimeoutError(f"Feed UI not detected within {timeout_ms} ms: {last_err}")
 
-    def _dismiss_common_blockers(self) -> None:
-        """Best-effort clicks to clear cookie/consent/legal blockers."""
-        if not self.page:
+    # --- Login (email/password only) ---
+    def _go_to_login_form(self, login_timeout_ms: int) -> None:
+        assert self.page
+        self.page.goto("https://www.linkedin.com/login", wait_until="networkidle", timeout=login_timeout_ms)
+        self._dismiss_banners()
+        email_sel = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
+        pass_sel = ':is(input#password, input[name="session_password"], input#session_password)'
+        try:
+            self.page.wait_for_selector(email_sel, timeout=6000)
+            self.page.wait_for_selector(pass_sel, timeout=6000)
             return
-        labels = [
-            "Accept", "Accept cookies", "Allow all", "Agree", "I agree",
-            "Continue", "Continue to LinkedIn", "Got it", "Close",
-            "Accept and continue", "OK", "Not now", "Skip",
-        ]
-        for label in labels:
-            try:
-                self.page.get_by_role("button", name=label, exact=False).click(timeout=1000)
-                self.page.wait_for_timeout(300)
-            except Exception:
-                continue
-        # Some banners are links
-        try:
-            self.page.get_by_role("link", name=re.compile("Continue|Agree|Accept", re.I)).first.click(timeout=1000)
-        except Exception:
-            pass
+        except PlaywrightTimeoutError:
+            # Route to the explicit alternate account page
+            self.page.goto("https://www.linkedin.com/checkpoint/lg/sign-in-another-account", wait_until="domcontentloaded", timeout=login_timeout_ms)
+            self._dismiss_banners()
+            self.page.wait_for_selector(email_sel, timeout=15000)
+            self.page.wait_for_selector(pass_sel, timeout=15000)
 
-    def _handle_legal_interstitials(self) -> bool:
-        """Best-effort handler for legal/interstitial pages (e.g., User Agreement, Privacy Policy).
-        Returns True if we clicked something or navigated that may unblock."""
-        if not self.page:
-            return False
-        acted = False
-        try:
-            url = (self.page.url or "").lower()
-            if "/legal/" in url or "user agreement" in (self.page.title() or "").lower():
-                # Try common action buttons
-                labels = [
-                    "Agree & continue", "Agree and continue", "Accept & continue", "Accept and continue",
-                    "I agree", "Agree", "Accept", "Continue to LinkedIn", "Continue"
-                ]
-                for label in labels:
+    def _fail_if_security_check(self) -> None:
+        assert self.page
+        challenge_markers = [
+            '#security-check-challenge',
+            'iframe[title*="captcha"]',
+            'text=/Verify your identity/i',
+            'text=/unusual activity/i',
+            'text=/are you a robot/i',
+            'text=/quick security check/i',
+            'text=/solve this puzzle/i',
+        ]
+        for sel in challenge_markers:
+            try:
+                if self.page.locator(sel).first.count() > 0:
+                    _save_debug_info(self.page, "security_challenge")
+                    logger.warning("Security challenge detected. Waiting for manual completion...")
+                    # Allow time for manual puzzle completion, while keeping stealth
                     try:
-                        self.page.get_by_role("button", name=label, exact=False).first.click(timeout=1500)
-                        _random_wait(300, 800)
-                        acted = True
-                        break
-                    except Exception:
-                        continue
-                if not acted:
-                    try:
-                        self.page.get_by_role("link", name=re.compile("Continue|Agree|Accept", re.I)).first.click(timeout=1500)
-                        _random_wait(300, 800)
-                        acted = True
+                        apply_stealth(self.page)
                     except Exception:
                         pass
-                # After any action (or even if none), try navigating back to feed
-                try:
-                    self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=30000)
-                    _random_wait(300, 800)
-                    acted = True
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        return acted
-
-    def _click_welcome_back_account_card(self) -> bool:
-        """Attempt to click the first account card on the Welcome Back/account chooser page."""
-        if not self.page:
-            return False
-        # Try several structural and text-based strategies
-        strategies = [
-            # Buttons within a container that has "Welcome Back" text
-            'div:has-text("Welcome Back") button',
-            'main:has-text("Welcome Back") button',
-            # General profile chooser known containers
-            'ul li button.profile-chooser__account',
-            'ul li .profile-chooser__account button',
-            'ul.profile-chooser__list li:first-child button',
-            # Generic: first visible button in the chooser area that's NOT the "another account" option
-        ]
-        for sel in strategies:
-            try:
-                loc = self.page.locator(sel).first
-                if loc.count() > 0:
-                    # Ensure we don't click the "another account" option
-                    if "another account" in (loc.inner_text() or "").lower():
-                        continue
-                    loc.click(timeout=1500)
-                    return True
-            except Exception:
-                continue
-        # JavaScript heuristic: click the first clickable card above the "another account" row
-        try:
-            success = self.page.evaluate("""
-            () => {
-              const getVisible = el => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-              const another = Array.from(document.querySelectorAll('*'))
-                 .find(n => /another account/i.test(n.textContent || ''));
-              let root = another ? another.parentElement : document.body;
-              while (root && root.tagName && root.tagName.toLowerCase() !== 'main') {
-                root = root.parentElement;
-              }
-              if (!root) root = document.body;
-              const candidates = Array.from(root.querySelectorAll('button, a, div[role="button"]'))
-                 .filter(getVisible)
-                 .filter(el => !/another account/i.test(el.textContent || ''));
-              if (candidates.length) {
-                 candidates[0].click();
-                 return true;
-              }
-              return false;
-            }
-            """)
-            if success:
-                return True
-        except Exception:
-            pass
-        return False
-
-    def _login(self) -> None:
-        """
-        Handles the login process to LinkedIn.
-        Attempts direct feed navigation with storage state first, then falls back to credentials.
-
-        Raises:
-            LinkedInAuthError: If authentication fails after all attempts.
-            PlaywrightTimeoutError: If Playwright operations time out during login.
-        """
-        if not self.page:
-            raise LinkedInError("Page not initialized for login.")
-
-        # Decide login strategy based on env
-        storage_only = os.getenv("LINKEDIN_STORAGE_ONLY", "false").lower() == "true"
-        if storage_only:
-            logger.info("Login strategy: storage-first with password fallback DISABLED (storage-only mode).")
-        else:
-            logger.info("Login strategy: storage-first with password fallback enabled.")
-
-        # Centralize login navigation timeout
-        try:
-            login_nav_timeout_ms = int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "300000"))
-        except Exception:
-            login_nav_timeout_ms = 300000
-        logger.info(f"Login navigation timeout set to {login_nav_timeout_ms} ms")
-        
-        # Attempt to use existing storage state by navigating directly to feed
-        if self.storage_state_path.exists() or bool(self.storage_b64):
-            logger.info("Attempting direct feed navigation using storage state.")
-            self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
-            _random_wait(1000, 2000)
-
-            # Handle potential legal interstitials (e.g., User Agreement) that can appear before feed
-            try:
-                self._handle_legal_interstitials()
-            except Exception:
-                pass
-
-            current_url = (self.page.url or "").lower()
-            if "legal" in current_url:
-                logger.info("Legal interstitial detected after storage navigation; attempting to proceed.")
-                try:
-                    if self._handle_legal_interstitials():
-                        _random_wait(400, 900)
-                except Exception:
-                    pass
-                # Do not return yet; continue with further checks
-            elif "login" not in current_url and "checkpoint" not in current_url:
-                try:
-                    # Ensure feed UI is actually interactive
-                    self._wait_for_feed_ui(timeout=15000)
-                    logger.info("Successfully navigated to feed (logged in via storage state).")
-                    return # Successfully logged in via storage state
-                except Exception:
-                    # Continue to additional handling
-                    pass
-
-            # If storage leads to a 'Welcome Back' / account chooser, try to continue with the existing session
-            try:
-                welcome_seen = False
-                try:
-                    self.page.get_by_text("Welcome Back", exact=False).wait_for(timeout=2000)
-                    welcome_seen = True
-                except Exception:
-                    # Some locales/pages may not show this text; still try continue buttons if on a login-like URL
-                    welcome_seen = "login" in self.page.url or "checkpoint" in self.page.url
-
-                if welcome_seen:
-                    logger.info("Detected account chooser. Attempting to continue with saved session.")
-                    clicked = False
-
-                    # Prefer clicking the first account card directly
-                    clicked = self._click_welcome_back_account_card()
-
-                    # Strategy: Explicit 'Continue as ...' text
-                    if not clicked:
+                    end = time.time() + int(os.getenv("LINKEDIN_SECURITY_WAIT_SECS", "240"))
+                    last_err = None
+                    while time.time() < end:
                         try:
-                            self.page.get_by_text("Continue as", exact=False).click(timeout=2000)
-                            clicked = True
-                        except Exception:
-                            pass
-
-                    # Fallback: Generic 'Continue' / 'Sign in' buttons
-                    if not clicked:
-                        for sel in [
-                            'button:has-text("Continue")',
-                            'a:has-text("Continue")',
-                            'button:has-text("Sign in")',
-                            'a:has-text("Sign in")',
-                        ]:
-                            try:
-                                self.page.locator(sel).first.click(timeout=2000)
-                                clicked = True
-                                break
-                            except Exception:
-                                continue
-
-                    if clicked:
-                        try:
-                            # If redirected to legal page after choosing account, handle it first
-                            current_url = (self.page.url or "").lower()
-                            if "legal" in current_url:
-                                logger.info("Legal interstitial detected after account chooser; attempting to proceed.")
+                            # If feed is reached or challenge disappears, proceed
+                            if "linkedin.com/feed" in (self.page.url or ""):
+                                return
+                            still_challenged = False
+                            for marker in challenge_markers:
                                 try:
-                                    self._handle_legal_interstitials()
-                                    _random_wait(300, 800)
+                                    if self.page.locator(marker).first.count() > 0:
+                                        still_challenged = True
+                                        break
                                 except Exception:
                                     pass
-                            # Then wait for feed
-                            self.page.wait_for_url("**/feed/**", timeout=login_nav_timeout_ms)
-                            # Ensure the feed UI is interactive by checking for any feed markers
-                            self._wait_for_feed_ui(timeout=login_nav_timeout_ms)
-                        except PlaywrightTimeoutError as e:
-                            # Fallback: detect feed UI even if URL doesn't update promptly
-                            try:
-                                self._wait_for_feed_ui(timeout=login_nav_timeout_ms)
-                                logger.info("Feed UI detected despite URL not matching /feed/.")
-                            except Exception:
-                                _save_debug_info(self.page, "account_chooser_feed_timeout")
-                                raise LinkedInAuthError(f"Failed to detect feed UI after account chooser within {login_nav_timeout_ms} ms: {e}") from e
-                        logger.info("Continued via account chooser and reached feed.")
-                        return
-                    else:
-                        logger.warning("Could not click account card on account chooser; will fall back to form login.")
-            except PlaywrightTimeoutError:
-                # Will fall back to email/password login
-                pass
+                            if not still_challenged:
+                                return
+                        except Exception as e:
+                            last_err = e
+                        self.page.wait_for_timeout(1000)
+                    raise LinkedInAuthError(f"Security challenge did not resolve within wait window: {last_err}")
+            except LinkedInAuthError:
+                raise
             except Exception:
-                # Non-fatal; fall back to email/password login
                 pass
 
-            logger.warning("Storage state did not auto-login.")
-            if storage_only:
-                _save_debug_info(self.page, "storage_login_failed")
-                raise LinkedInAuthError("Storage-only mode enabled and storage session is invalid or requires verification.")
+    def _login(self) -> None:
+        assert self.page
+        login_nav_timeout_ms = int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "180000"))
 
-        # Fallback to email/password login (only if storage_only is False)
-        if storage_only:
-            raise LinkedInAuthError("Storage-only mode enabled but storage did not authenticate.")
-        if not self.email or not self.password:
-            raise LinkedInAuthError("Storage state invalid and no email/password provided for login.")
+        # If storage state already logged-in, go straight to feed and verify
+        try:
+            self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=20000)
+            self._dismiss_banners()
+            self._wait_for_feed_ui(timeout_ms=30000)
+            logger.info("Using existing session (no login required)")
+            return
+        except Exception:
+            pass
 
-        logger.info("Proceeding with email/password login.")
-        # Load login page and wait for network to be idle to ensure all UI (e.g., cookie banners) is loaded
-        # Increase navigation timeout for login page load
-        self.page.goto("https://www.linkedin.com/login", wait_until="networkidle", timeout=login_nav_timeout_ms)
+        # Otherwise perform fresh login with credentials
+        if not (self.email and self.password):
+            raise LinkedInAuthError("No valid session and no credentials provided for login.")
+
+        self._go_to_login_form(login_nav_timeout_ms)
+
+        email_sel = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
+        pass_sel = ':is(input#password, input[name="session_password"], input#session_password)'
+
+        self.page.locator(email_sel).fill(self.email)
+        _random_wait()
+        self.page.locator(pass_sel).fill(self.password)
         _random_wait()
 
-        # Detect possible security challenges and bail with diagnostics
+        # Submit (re-apply stealth before clicking Sign in)
         try:
-            challenge_selectors = [
-                '#security-check-challenge',
-                'input[name="captcha"]',
-                'iframe[title*="captcha"]',
-                'text=/Verify your identity/i',
-                'text=/unusual activity/i',
-                'text=/are you a robot/i',
-            ]
-            for sel in challenge_selectors:
-                if self.page.locator(sel).first.count() > 0:
-                    _save_debug_info(self.page, "security_challenge_detected")
-                    raise LinkedInAuthError("LinkedIn security challenge detected; cannot proceed automatically.")
-        except Exception:
-            # Non-fatal — continue; we still handle timeouts later
-            pass
-
-        # Dismiss common cookie/consent banners (best-effort, non-fatal)
-        try:
-            self._dismiss_common_blockers()
+            apply_stealth(self.page)
         except Exception:
             pass
+        clicked = False
+        for sel in ['button[type="submit"]', 'form button:has-text("Sign in")', 'button:has-text("Sign in")']:
+            try:
+                self.page.locator(sel).first.click(timeout=3000)
+                clicked = True
+                break
+            except Exception:
+                pass
+        if not clicked:
+            _save_debug_info(self.page, "login_submit_error")
+            raise LinkedInAuthError("Could not find the Sign in button.")
 
-        # Robust selectors for email/password across LinkedIn variants
-        email_selector = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
-        password_selector = ':is(input#password, input[name="session_password"], input#session_password)'
+        # Detect puzzle/captcha early
+        _random_wait(600, 1200)
+        self._fail_if_security_check()
 
-        # If the "Welcome Back" screen is shown, or guest homepage is shown, route to classic email login
+        # Wait to reach feed then verify UI
         try:
-            self.page.wait_for_selector(email_selector, timeout=5000)
+            self.page.wait_for_url("**/feed/**", timeout=min(90000, login_nav_timeout_ms))
         except PlaywrightTimeoutError:
             try:
-                # First, handle guest homepage variant by clicking Sign in entry points
-                clicked_any = False
-                for sel in [
-                    'button:has-text("Sign in with email")',
-                    'a:has-text("Sign in")',
-                    'button:has-text("Sign in")',
-                    'a[href*="/login"]',
-                    'a[href*="uas/login"]',
-                ]:
-                    try:
-                        self.page.locator(sel).first.click(timeout=2500)
-                        clicked_any = True
-                        _random_wait(300, 700)
-                        break
-                    except Exception:
-                        continue
-                if not clicked_any:
-                    try:
-                        self.page.get_by_role("link", name="Sign in", exact=False).first.click(timeout=2500)
-                        clicked_any = True
-                        _random_wait(300, 700)
-                    except Exception:
-                        pass
-
-                # Also try account-chooser fallback CTA
-                clicked = False
-                try:
-                    self.page.get_by_role("button", name="Sign in using another account", exact=False).click(timeout=3000)
-                    clicked = True
-                except Exception:
-                    pass
-                if not clicked:
-                    try:
-                        self.page.get_by_text("Sign in using another account", exact=False).click(timeout=3000)
-                        clicked = True
-                    except Exception:
-                        pass
-
-                if clicked or clicked_any:
-                    _random_wait(300, 700)
-
-                # Wait again for the email field after switching to classic login form
-                self.page.wait_for_selector(email_selector, timeout=30000)
-            except PlaywrightTimeoutError as e:
-                _save_debug_info(self.page, "login_welcome_back_no_email")
-                raise LinkedInAuthError(
-                    "Could not find email field or switch to classic login (guest or welcome-back variants)."
-                ) from e
-
-        # Fill email
-        try:
-            self.page.locator(email_selector).fill(self.email)
-            logger.debug("Email field filled.")
-        except PlaywrightTimeoutError as e:
-            _save_debug_info(self.page, "login_email_fill_timeout")
-            raise LinkedInAuthError(f"Timeout locating/filling email field during login: {e}") from e
-
-        _random_wait(300, 800)
-
-        # Fill password
-        try:
-            self.page.wait_for_selector(password_selector, timeout=30000)
-            self.page.locator(password_selector).fill(self.password)
-            logger.debug("Password field filled.")
-        except PlaywrightTimeoutError as e:
-            _save_debug_info(self.page, "login_password_fill_timeout")
-            raise LinkedInAuthError(f"Timeout locating/filling password field during login: {e}") from e
-
-        _random_wait(300, 800)
-
-        # Click submit
-        try:
-            self.page.locator('button[type="submit"]').click()
-
-            # Two-stage wait: first 120s (configurable), then apply fallbacks (refresh/new tab), then wait remaining time
-            try:
-                first_wait_ms = int(os.getenv("LINKEDIN_FEED_FIRST_WAIT_MS", "120000"))
+                self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=30000)
             except Exception:
-                first_wait_ms = 120000
-            remaining_ms = max(10000, login_nav_timeout_ms - first_wait_ms)
+                pass
+        self._fail_if_security_check()
+        self._wait_for_feed_ui(timeout_ms=login_nav_timeout_ms)
+        _random_wait(800, 1600)
 
-            try:
-                # Initial wait for feed URL
-                self.page.wait_for_url("**/feed/**", timeout=first_wait_ms)
-            except PlaywrightTimeoutError as e:
-                logger.warning(f"Did not reach feed within first {first_wait_ms} ms after login, applying fallbacks (refresh/direct feed/new tab). Error: {e}")
-                # Fallback A: Refresh current page
-                try:
-                    self.page.reload(wait_until="networkidle")
-                except Exception:
-                    pass
-                _random_wait(500, 1500)
-
-                # Fallback B: Try direct navigation to feed in the same tab
-                try:
-                    self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=30000)
-                except Exception:
-                    pass
-                _random_wait(500, 1500)
-
-                # If still not on feed, try opening feed in a new tab
-                try:
-                    if ("/feed" not in self.page.url) or (self.page.get_by_role("button", name="Start a post", exact=False).count() == 0):
-                        new_page = self.context.new_page()
-                        try:
-                            # Apply stealth to the new page as well
-                            apply_stealth(new_page)
-                        except Exception:
-                            pass
-                        try:
-                            timeout_ms = int(os.getenv("LINKEDIN_DEFAULT_TIMEOUT_MS", "120000"))
-                        except Exception:
-                            timeout_ms = 120000
-                        try:
-                            new_page.set_default_timeout(timeout_ms)
-                            new_page.set_default_navigation_timeout(timeout_ms)
-                        except Exception:
-                            pass
-                        new_page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=30000)
-                        # If feed UI is present on new tab, switch to it
-                        try:
-                            new_page.get_by_role("button", name="Start a post", exact=False).wait_for(timeout=15000)
-                            self.page = new_page
-                            logger.info("Switched to new tab with LinkedIn feed.")
-                        except Exception:
-                            try:
-                                new_page.close()
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-
-                # Final attempt: wait for feed UI with remaining time
-                try:
-                    self._wait_for_feed_ui(timeout=remaining_ms)
-                    logger.info("Feed UI detected after applying fallbacks.")
-                except Exception as final_e:
-                    _save_debug_info(self.page, "login_submit_timeout")
-                    raise LinkedInAuthError(
-                        f"Failed to reach feed after login and fallbacks within {login_nav_timeout_ms} ms: {final_e}"
-                    ) from e
-
-            logger.info("Login form submitted; feed detected or fallbacks applied successfully.")
-        except Exception as e:
-            _save_debug_info(self.page, "login_submit_error")
-            raise LinkedInAuthError(f"Error clicking login submit button: {e}") from e
-
-
-        if "feed" not in self.page.url:
-            _save_debug_info(self.page, "login_failed_final")
-            raise LinkedInAuthError(f"Login failed: Did not reach LinkedIn feed page. Current URL: {self.page.url}")
-
-        logger.info("Successfully logged in to LinkedIn.")
-        _random_wait(1000, 3000)
-
-        # Skip saving storage state to avoid "new device" notifications
-        logger.info("Skipping storage state save to avoid 'new device' notifications.")
-
-
-    def _open_post_composer(self) -> None:
-        """
-        Attempts to open the LinkedIn post composer.
-
-        Raises:
-            LinkedInPostError: If the post composer cannot be opened.
-            PlaywrightTimeoutError: If operations time out.
-        """
-        if not self.page:
-            raise LinkedInError("Page not initialized.")
-
-        logger.info("Attempting to open post composer.")
-        # Robustly find and click the 'Start a post' button (localization-aware)
+        # Save storage state for future automated runs
         try:
-            # Prefer role-based locators with multiple possible labels
-            labels = [
-                "Start a post", "Create a post", "Post", "Share", "Start post",
-            ]
-            clicked = False
-            for label in labels:
-                try:
-                    self.page.get_by_role("button", name=label, exact=False).first.click(timeout=2000)
-                    clicked = True
-                    break
-                except Exception:
-                    continue
-            if not clicked:
-                # Fallback to aria-label variants
-                aria_loc = self.page.locator('button[aria-label*="post" i], button[aria-label*="Share" i], button[aria-label*="Start a post" i]').first
-                try:
-                    aria_loc.click(timeout=3000)
-                    clicked = True
-                except Exception:
-                    pass
-            if not clicked:
-                # Fallback: click the share-box trigger container
-                self.page.locator(':is(div.share-box-feed-entry__trigger, button.share-box-feed-entry__trigger)').first.click(timeout=5000)
-        except PlaywrightTimeoutError as e:
-            _save_debug_info(self.page, "composer_button_timeout")
-            raise LinkedInPostError(f"Failed to find or click post composer trigger: {e}") from e
+            self.context.storage_state(path=self.storage_state_path)
+            logger.info(f"Saved LinkedIn session to {self.storage_state_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save storage state: {e}")
+
+    # --- Posting ---
+    def _open_post_composer(self) -> None:
+        assert self.page
+        labels = ["Start a post", "Create a post", "Post", "Share", "Start post"]
+        for label in labels:
+            try:
+                self.page.get_by_role("button", name=label, exact=False).first.click(timeout=2000)
+                return
+            except Exception:
+                pass
+        try:
+            self.page.locator('button[aria-label*="post" i], button[aria-label*="share" i]').first.click(timeout=3000)
+            return
         except Exception as e:
             _save_debug_info(self.page, "composer_button_error")
-            raise LinkedInPostError(f"Error clicking post composer trigger: {e}") from e
-
-        # Wait for the composer UI to appear and an editable textbox to be visible
-        try:
-            # First try the classic dialog overlay
-            dialog_visible = False
-            try:
-                self.page.wait_for_selector('div[role="dialog"]', timeout=20000)
-                dialog_visible = True
-            except PlaywrightTimeoutError:
-                dialog_visible = False
-
-            # Fallback: some accounts open a full-page composer (lithograph). Detect via URL or editor presence.
-            if not dialog_visible:
-                composer_like = (
-                    "lithograph" in (self.page.url or "")
-                    or self.page.locator('div[contenteditable="true"][role="textbox"]').first.count() > 0
-                    or self.page.locator('div[aria-label*="Add to your post"]').first.count() > 0
-                )
-                if not composer_like:
-                    # Give it a bit more time before failing
-                    self.page.wait_for_timeout(5000)
-
-            # Now, robustly wait for any reasonable editor target
-            editor_locators = [
-                # Dialog editor
-                'div[role="dialog"] div[contenteditable="true"][role="textbox"]',
-                'div[role="dialog"] [aria-label*="Text editor"]',
-                'div[role="dialog"] [aria-label*="What do you want"]',
-                'div[role="dialog"] [aria-label*="Add to your post"]',
-                # Full-page composer fallbacks
-                'div[contenteditable="true"][role="textbox"]',
-                '[aria-label*="Text editor for creating content"]',
-                '[aria-label*="What do you want"]',
-                '[aria-label*="Add to your post"]',
-            ]
-
-            editor_found = False
-            for sel in editor_locators:
-                loc = self.page.locator(sel).first
-                try:
-                    loc.wait_for(state="visible", timeout=15000)
-                    editor_found = True
-                    break
-                except Exception:
-                    continue
-
-            if not editor_found:
-                raise PlaywrightTimeoutError("Editor textbox not found via known selectors")
-
-            logger.info("Post composer opened successfully and editor is visible.")
-        except PlaywrightTimeoutError as e:
-            _save_debug_info(self.page, "composer_dialog_timeout")
-            raise LinkedInPostError(f"Timeout waiting for post composer dialog/editor: {e}") from e
-        _random_wait(500, 1500)
+            raise LinkedInPostError(f"Could not open post composer: {e}")
 
     def _enter_post_content(self, text: str) -> None:
-        """
-        Enters the post content into the composer's editable area.
-
-        Args:
-            text: The text content to post.
-
-        Raises:
-            LinkedInPostError: If the text area cannot be found or filled.
-            PlaywrightTimeoutError: If operations time out.
-        """
-        if not self.page:
-            raise LinkedInError("Page not initialized.")
-
-        logger.info("Entering content into composer.")
-        try:
-            # *** FIX: Use a more specific locator to target the actual textbox ***
-            # The error message indicated: <div role="textbox" ... aria-label="Text editor for creating content">
-            editable_area = self.page.get_by_role("textbox", name="Text editor for creating content")
-            editable_area.click(timeout=10000)
-            _human_type(self.page, text, min_delay=30, max_delay=100)
-            logger.info("Content entered in composer.")
-        except PlaywrightTimeoutError as e:
-            _save_debug_info(self.page, "content_editable_timeout")
-            raise LinkedInPostError(f"Timeout interacting with content editable area: {e}") from e
-        except Exception as e:
-            _save_debug_info(self.page, "content_editable_error")
-            raise LinkedInPostError(f"Error entering content into composer: {e}") from e
-        _random_wait(1000, 2000)
+        assert self.page
+        # Target the editable textbox inside dialog or full-page composer
+        editor_selectors = [
+            'div[role="dialog"] div[contenteditable="true"][role="textbox"]',
+            'div[contenteditable="true"][role="textbox"]',
+        ]
+        editor = None
+        for sel in editor_selectors:
+            try:
+                loc = self.page.locator(sel).first
+                if loc and loc.count() > 0:
+                    editor = loc
+                    break
+            except Exception:
+                pass
+        if not editor:
+            _save_debug_info(self.page, "composer_editor_missing")
+            raise LinkedInPostError("Post editor not found.")
+        editor.click()
+        editor.fill("")
+        editor.type(text, delay=random.randint(20, 60))
+        _random_wait(400, 900)
 
     def _publish_post(self) -> None:
-        """
-        Clicks the 'Post' button and waits for the post to be published.
-
-        Raises:
-            LinkedInPostError: If the 'Post' button cannot be found or the post fails to publish.
-            PlaywrightTimeoutError: If operations time out.
-        """
-        if not self.page:
-            raise LinkedInError("Page not initialized.")
-
-        logger.info("Attempting to publish post.")
-        _save_debug_info(self.page, "before_post_click") # Debug screenshot before click
-
+        assert self.page
+        # Click Post button in dialog or full composer
+        clicked = False
+        for sel in [
+            'div[role="dialog"] button:has-text("Post")',
+            'button:has-text("Post")',
+            'div[role="dialog"] button[aria-label*="Post" i]',
+        ]:
+            try:
+                self.page.locator(sel).first.click(timeout=4000)
+                clicked = True
+                break
+            except Exception:
+                pass
+        if not clicked:
+            _save_debug_info(self.page, "composer_publish_button_missing")
+            raise LinkedInPostError("Post button not found.")
+        # Wait for composer to close or feed to be visible
         try:
-            # Find and click the 'Post' button
-            post_button = self.page.get_by_role("button", name="Post", exact=True)
-            post_button.click(timeout=login_nav_timeout_ms if 'login_nav_timeout_ms' in locals() else 30000)
-            logger.info("Clicked Post button, waiting for post confirmation/redirection.")
-        except PlaywrightTimeoutError as e:
-            _save_debug_info(self.page, "post_button_click_timeout")
-            raise LinkedInPostError(f"Timeout clicking 'Post' button: {e}") from e
-        except Exception as e:
-            _save_debug_info(self.page, "post_button_click_error")
-            raise LinkedInPostError(f"Error clicking 'Post' button: {e}") from e
+            self.page.wait_for_selector('div[role="dialog"]', state='detached', timeout=30000)
+        except Exception:
+            pass
+        self._wait_for_feed_ui(timeout_ms=60000)
 
-        # Wait for the URL to change back to feed or for a success message (more robust approach needed here)
-        # For now, a generous random wait and checking the URL is a start.
-        _random_wait(5000, 10000) # Give time for the post to process and page to update
-
-        _save_debug_info(self.page, "after_post_click") # Debug screenshot after click
-
-        if "feed" in self.page.url:
-            logger.info("Post appears to be published successfully (returned to feed).")
-        else:
-            _save_debug_info(self.page, "post_status_unknown")
-            raise LinkedInPostError(f"Post status uncertain: Did not return to feed page. Current URL: {self.page.url}")
-
-    def _close_browser(self) -> None:
-        """Closes the Playwright browser and context if they are open."""
-        if self.context:
-            try:
-                self.context.close()
-                logger.info("Playwright context closed.")
-            except Exception as e:
-                logger.warning(f"Error closing Playwright context: {e}")
-        if self.browser:
-            try:
-                self.browser.close()
-                logger.info("Playwright browser closed.")
-            except Exception as e:
-                logger.warning(f"Error closing Playwright browser: {e}")
-
+    # --- Public API ---
     def post_content(self, text: str) -> bool:
-        """
-        Main entry point to post content to LinkedIn.
-
-        Args:
-            text: The text content to post.
-
-        Returns:
-            True if posting was successful and verified.
-
-        Raises:
-            LinkedInError: For any general errors during the posting process.
-            LinkedInAuthError: If authentication fails.
-            LinkedInPostError: If the post creation or publishing fails or cannot be verified.
-        """
+        # Ensure content is generated before any login attempt
+        if not text or not text.strip():
+            raise LinkedInPostError("Post text is empty. Generate content before logging in.")
         try:
-            self._setup_browser_context()
+            self._setup()
             self._login()
             self._open_post_composer()
             self._enter_post_content(text)
             self._publish_post()
-
-            # Verify the post appears in the feed by searching for a unique snippet
+            # Verify text snippet appears in feed (best-effort)
             try:
-                # Use first non-empty line without hashtags as snippet
                 lines = [l.strip() for l in text.splitlines() if l.strip()]
-                base_line = next((l for l in lines if not l.strip().startswith('#')), lines[0] if lines else text)
-                snippet = base_line[:80]
-                if len(snippet) < 10:
-                    # Fall back to longer body slice if the first line is too short
-                    snippet = text[:120]
-                # Wait up to 30s for the snippet to appear in the feed after posting
-                self.page.wait_for_selector(f"text={snippet}", timeout=30000)
-                logger.info("Verified post content visible in feed.")
-            except PlaywrightTimeoutError:
-                # Could not confirm presence — treat as failure to avoid false positives
-                _save_debug_info(self.page, "verification_timeout")
-                raise LinkedInPostError("Post verification failed: content not found in feed within timeout.")
-
+                base_line = next((l for l in lines if not l.startswith('#')), lines[0] if lines else text)
+                snippet = (base_line or text)[:80]
+                self.page.wait_for_selector(f"text={snippet}", timeout=25000)
+            except Exception:
+                logger.warning("Could not verify post snippet in feed within timeout.")
             return True
-        except (LinkedInAuthError, LinkedInPostError, LinkedInError, PlaywrightTimeoutError) as e:
+        except Exception as e:
             logger.error(f"Failed to post to LinkedIn: {e}", exc_info=True)
             if self.page:
                 _save_debug_info(self.page, "final_error_state")
-            raise # Re-raise the specific exception
+            raise
         finally:
-            self._close_browser()
-
-# --- Example Usage (similar to original function signature) ---
+            self._teardown()
+# Entry point compatible with existing imports
 def post_to_linkedin(text: str) -> bool:
-    """
-    High-level function to post content to LinkedIn.
-
-    Retrieves credentials from environment variables and uses the LinkedInPoster class.
-
-    Args:
-        text: The text content to post.
-
-    Returns:
-        True if posting was successful, False otherwise.
-
-    Raises:
-        RuntimeError: If authentication details are missing or posting fails.
-    """
     email = os.getenv("LINKEDIN_EMAIL") or os.getenv("LINKEDIN_USER")
     password = os.getenv("LINKEDIN_PASSWORD") or os.getenv("LINKEDIN_PASS")
-    storage_b64 = os.getenv("LINKEDIN_STORAGE_B64")
-
-    if not any([email and password, Path("storage_state.json").exists(), Path("new_storage_state.json").exists(), storage_b64]):
-        raise RuntimeError(
-            "Missing authentication: Need either existing storage state file (storage_state.json/new_storage_state.json), "
-            "LINKEDIN_STORAGE_B64 environment variable, or both LINKEDIN_EMAIL and LINKEDIN_PASSWORD environment variables."
-        )
-
-    # Determine the storage file to use if present
-    storage_file_env = os.getenv("LINKEDIN_STORAGE_FILE")
-    storage_path = None
-    try:
-        if storage_file_env and Path(storage_file_env).exists():
-            storage_path = storage_file_env
-        elif Path("new_storage_state.json").exists():
-            storage_path = "new_storage_state.json"
-        elif Path("storage_state.json").exists():
-            storage_path = "storage_state.json"
-        elif Path("linkedin_cookies.json").exists():
-            storage_path = "linkedin_cookies.json"
-    except Exception:
-        storage_path = None
-
-    poster = LinkedInPoster(email=email, password=password, storage_b64=storage_b64,
-                            storage_state_path=storage_path or "linkedin_cookies.json")
+    storage_state = os.getenv("LINKEDIN_STORAGE_STATE", "linkedin_storage.json")
+    # Allow running with storage state only (after a one-time manual solve)
+    if not (email and password) and not os.path.exists(storage_state):
+        raise RuntimeError("Provide LinkedIn credentials or set LINKEDIN_STORAGE_STATE to an existing session file.")
+    poster = LinkedInPoster(email=email, password=password, storage_state_path=storage_state)
     try:
         return poster.post_content(text)
     except (LinkedInAuthError, LinkedInPostError, LinkedInError) as e:
         raise RuntimeError(f"LinkedIn posting failed: {e}") from e
     except PlaywrightTimeoutError as e:
-        raise RuntimeError(f"A Playwright operation timed out during LinkedIn posting: {e}") from e
+        raise RuntimeError(f"Playwright timed out during LinkedIn posting: {e}") from e

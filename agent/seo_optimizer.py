@@ -2,7 +2,7 @@ import os,re,json,requests
 from typing import List,Tuple,Dict,Any
 
 OPENROUTER_API_URL="https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL=os.getenv("OPENROUTER_MODEL","deepseek/deepseek-r1:free")
+DEFAULT_MODEL=os.getenv("OPENROUTER_MODEL","x-ai/grok-4-fast:free")
 
 SEO_SYS="You are an expert LinkedIn growth + SEO editor. Return strict JSON only."
 SEO_USER_PREFIX=(

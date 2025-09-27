@@ -8,7 +8,7 @@ This agent can generate professional, SEO-friendly LinkedIn posts using the Deep
    
    ```
    OPENROUTER_API_KEY=your_openrouter_key
-   OPENROUTER_MODEL=deepseek/deepseek-r1:free
+   OPENROUTER_MODEL=x-ai/grok-4-fast:free
    ```
 
 2. Install dependencies:
