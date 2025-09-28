@@ -81,3 +81,6 @@ content_backlog/used_posts.jsonl
 *.tmp
 *.temp
 *_tmp.py
+
+# Ensure requirements.txt is not ignored
+!requirements.txt
