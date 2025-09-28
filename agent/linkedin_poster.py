@@ -195,9 +195,27 @@ class LinkedInPoster:
     # --- Login (email/password only) ---
     def _go_to_login_form(self, login_timeout_ms: int) -> None:
         assert self.page
-        self.page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded", timeout=login_timeout_ms)
-        _random_wait()
-        self._dismiss_banners()
+        # Try multiple navigation strategies with shorter timeouts
+        urls_to_try = [
+            "https://www.linkedin.com/login",
+            "https://www.linkedin.com/checkpoint/lg/sign-in-another-account",
+            "https://linkedin.com/login"
+        ]
+        
+        for url in urls_to_try:
+            try:
+                # Use shorter timeout per attempt
+                timeout_per_attempt = min(60000, login_timeout_ms // len(urls_to_try))
+                logger.info(f"Attempting to navigate to {url} with {timeout_per_attempt}ms timeout")
+                self.page.goto(url, wait_until="domcontentloaded", timeout=timeout_per_attempt)
+                _random_wait()
+                self._dismiss_banners()
+                break
+            except PlaywrightTimeoutError as e:
+                logger.warning(f"Navigation to {url} timed out: {e}")
+                if url == urls_to_try[-1]:  # Last attempt
+                    raise LinkedInAuthError(f"All navigation attempts failed. Last error: {e}")
+                continue
         email_sel = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
         pass_sel = ':is(input#password, input[name="session_password"], input#session_password)'
         try:
@@ -205,9 +223,8 @@ class LinkedInPoster:
             self.page.wait_for_selector(pass_sel, timeout=6000)
             return
         except PlaywrightTimeoutError:
-            # Route to the explicit alternate account page
-            self.page.goto("https://www.linkedin.com/checkpoint/lg/sign-in-another-account", wait_until="domcontentloaded", timeout=login_timeout_ms)
-            self._dismiss_banners()
+            logger.warning("Login form not found on current page, trying alternate URL")
+            # Already handled in the loop above, just wait for selectors
             self.page.wait_for_selector(email_sel, timeout=15000)
             self.page.wait_for_selector(pass_sel, timeout=15000)
 
@@ -260,16 +277,23 @@ class LinkedInPoster:
 
     def _login(self) -> None:
         assert self.page
-        login_nav_timeout_ms = int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", "180000"))
+        # Use shorter timeouts in CI environments
+        is_ci = os.getenv("CI", "false").lower() == "true" or os.getenv("GITHUB_ACTIONS", "false").lower() == "true"
+        base_timeout = 60000 if is_ci else 180000
+        login_nav_timeout_ms = int(os.getenv("LINKEDIN_LOGIN_NAV_TIMEOUT_MS", str(base_timeout)))
+        
+        logger.info(f"Login attempt with timeout: {login_nav_timeout_ms}ms (CI detected: {is_ci})")
 
         # If storage state already logged-in, go straight to feed and verify
         try:
-            self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=20000)
+            feed_timeout = 15000 if is_ci else 20000
+            self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=feed_timeout)
             self._dismiss_banners()
             self._wait_for_feed_ui(timeout_ms=30000)
             logger.info("Using existing session (no login required)")
             return
-        except PlaywrightTimeoutError:
+        except PlaywrightTimeoutError as e:
+            logger.info(f"Existing session check failed: {e}")
             pass
 
         # Otherwise perform fresh login with credentials
@@ -491,16 +515,34 @@ class LinkedInPoster:
             self._teardown()
 # Entry point compatible with existing imports
 def post_to_linkedin(text: str) -> bool:
+    # Check if posting is disabled
+    if os.getenv("ENABLE_POST", "true").lower() == "false":
+        logger.info("LinkedIn posting disabled via ENABLE_POST=false")
+        return False
+        
+    # Check for CI environment and provide helpful error
+    is_ci = os.getenv("CI", "false").lower() == "true" or os.getenv("GITHUB_ACTIONS", "false").lower() == "true"
+    if is_ci:
+        logger.warning("Running in CI environment - LinkedIn posting may fail due to network restrictions")
+    
     email = os.getenv("LINKEDIN_EMAIL") or os.getenv("LINKEDIN_USER")
     password = os.getenv("LINKEDIN_PASSWORD") or os.getenv("LINKEDIN_PASS")
     storage_state = os.getenv("LINKEDIN_STORAGE_STATE", "linkedin_storage.json")
+    
     # Allow running with storage state only (after a one-time manual solve)
     if not (email and password) and not os.path.exists(storage_state):
         raise RuntimeError("Provide LinkedIn credentials or set LINKEDIN_STORAGE_STATE to an existing session file.")
+    
     poster = LinkedInPoster(email=email, password=password, storage_state_path=storage_state)
     try:
         return poster.post_content(text)
     except (LinkedInAuthError, LinkedInPostError, LinkedInError) as e:
+        if is_ci:
+            logger.error(f"LinkedIn posting failed in CI environment: {e}")
+            logger.info("Consider setting ENABLE_POST=false for CI runs or using a different posting strategy")
         raise RuntimeError(f"LinkedIn posting failed: {e}") from e
     except PlaywrightTimeoutError as e:
+        if is_ci:
+            logger.error(f"Network timeout in CI environment: {e}")
+            logger.info("LinkedIn may be blocking CI IP ranges. Consider disabling posting in CI.")
         raise RuntimeError(f"Playwright timed out during LinkedIn posting: {e}") from e
