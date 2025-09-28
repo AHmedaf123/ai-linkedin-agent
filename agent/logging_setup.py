@@ -87,11 +87,20 @@ def setup_logging(log_file: Optional[str] = None,
         # Create directory only if log_file has a directory path
         log_dir = os.path.dirname(log_file)
         if log_dir:
-            os.makedirs(log_dir, exist_ok=True)
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(file_level)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+            try:
+                os.makedirs(log_dir, exist_ok=True)
+            except Exception as dir_exc:
+                # Log warning but continue without file handler
+                logger.warning(f"Failed to create log directory {log_dir}: {dir_exc}", exc_info=True)
+                log_dir = None  # Prevent further directory creation attempts
+        try:
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(file_level)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        except Exception as file_exc:
+            # Log warning but continue without file handler
+            logger.warning(f"Failed to create file handler for {log_file}: {file_exc}", exc_info=True)
     
     return logger
 

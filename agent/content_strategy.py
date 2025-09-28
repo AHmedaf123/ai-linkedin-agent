@@ -35,7 +35,8 @@ def get_next_niche_round_robin() -> str:
             with open(NICHE_INDEX_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 idx = int(data.get("index", -1))
-        except Exception:
+        except (OSError, IOError, json.JSONDecodeError) as e:
+            logger.warning(f"Failed to load niche index: {str(e)}")
             idx = -1
     # Advance and wrap
     idx = (idx + 1) % len(niches)
@@ -48,8 +49,8 @@ def get_next_niche_round_robin() -> str:
                 "niches_count": len(niches),
                 "updated_at": datetime.datetime.now().isoformat()
             }, f, indent=2)
-    except Exception:
-        pass
+    except (OSError, IOError, json.JSONDecodeError, ValueError, TypeError) as e:
+        logger.warning(f"Failed to save niche index: {str(e)}")
     return niches[idx]
 
 # Post template variations
@@ -127,7 +128,7 @@ def load_config() -> Dict:
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
-    except Exception as e:
+    except (OSError, IOError, yaml.YAMLError) as e:
         logger.error(f"Error loading config: {str(e)}")
         return {"niches": []}
 
@@ -137,7 +138,7 @@ def load_calendar() -> Dict:
     try:
         with open(CALENDAR_PATH, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
-    except Exception as e:
+    except (OSError, IOError, yaml.YAMLError) as e:
         logger.error(f"Error loading calendar: {str(e)}")
         return {"weekly_schedule": {}}
 
@@ -150,7 +151,7 @@ def load_repo_queue() -> List[str]:
                 data = json.load(f)
                 return data.get("pending_repos", [])
         return []
-    except Exception as e:
+    except (OSError, IOError, json.JSONDecodeError) as e:
         logger.error(f"Error loading repo queue: {str(e)}")
         return []
 
@@ -162,7 +163,7 @@ def load_used_repos() -> List[str]:
             with open(USED_REPOS_PATH, "r") as f:
                 return json.load(f)
         return []
-    except Exception as e:
+    except (OSError, IOError, json.JSONDecodeError) as e:
         logger.error(f"Error loading used repos: {str(e)}")
         return []
 
@@ -174,7 +175,7 @@ def load_engagement_metrics() -> Dict:
             with open(METRICS_HISTORY_PATH, "r") as f:
                 return json.load(f)
         return {"posts": []}
-    except Exception as e:
+    except (OSError, IOError, json.JSONDecodeError) as e:
         logger.error(f"Error loading engagement metrics: {str(e)}")
         return {"posts": []}
 
@@ -184,7 +185,7 @@ def fetch_trending_ai_topics() -> List[Dict]:
     try:
         # ArXiv API query for recent AI papers
         url = "http://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=5"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         
         if response.status_code != 200:
             logger.error(f"Error fetching ArXiv data: {response.status_code}")
@@ -208,7 +209,7 @@ def fetch_trending_ai_topics() -> List[Dict]:
             })
         
         return topics
-    except Exception as e:
+    except (requests.RequestException, OSError, IOError) as e:
         logger.error(f"Error fetching trending AI topics: {str(e)}")
         return []
 
@@ -247,7 +248,11 @@ def get_best_performing_template(engagement_metrics: Dict) -> Dict:
     best_avg_engagement = -1
     
     for template_id, performance in template_performance.items():
-        avg_engagement = performance["total_engagement"] / performance["count"]
+        try:
+            avg_engagement = performance["total_engagement"] / performance["count"] if performance["count"] > 0 else 0
+        except (KeyError, ZeroDivisionError, TypeError) as e:
+            logger.warning(f"Error calculating average engagement for template {template_id}: {str(e)}")
+            avg_engagement = 0
         if avg_engagement > best_avg_engagement:
             best_avg_engagement = avg_engagement
             best_template_id = template_id
@@ -261,64 +266,77 @@ def get_best_performing_template(engagement_metrics: Dict) -> Dict:
 
 def get_next_topic_strategy() -> Dict:
     """Determine the next topic and template based on the content strategy"""
-    # Load necessary data
-    repo_queue = load_repo_queue()
-    used_repos = load_used_repos()
-    config = load_config()
-    calendar = load_calendar()
-    engagement_metrics = load_engagement_metrics()
-    
-    # Strategy 1: If pending repos exist, choose next repo
-    if repo_queue:
-        logger.info("Content strategy: Using next repository from queue")
-        return {
-            "source": "repo",
-            "topic": repo_queue[0],
-            "template": get_best_performing_template(engagement_metrics),
-            "priority_score": 10  # Highest priority
-        }
-    
-    # Strategy 2: Use niche topics from config (round-robin order) — enforced
-    niches = config.get("niches", [])
-    if niches:
-        next_niche = get_next_niche_round_robin()
-        logger.info("Content strategy: Using niche topic from config (round-robin)")
-        return {
-            "source": "niche",
-            "topic": next_niche,
-            "template": get_best_performing_template(engagement_metrics),
-            "priority_score": 9  # Prefer niches over calendar
-        }
-
-    # Strategy 3: If niches absent, try calendar topic
-    weekday = datetime.datetime.now().weekday()
-    weekly_schedule = calendar.get("weekly_schedule", {})
-    if str(weekday) in weekly_schedule or weekday in weekly_schedule:
-        day_key = str(weekday) if str(weekday) in weekly_schedule else weekday
-        day_schedule = weekly_schedule[day_key]
-        primary_topic = day_schedule.get("primary_topic", "")
-        subtopics = day_schedule.get("subtopics", [])
-        if primary_topic and subtopics:
-            selected_topic = f"{primary_topic}: {random.choice(subtopics)}"
-            logger.info(f"Content strategy: Using calendar topic for day {weekday}")
+    try:
+        # Load necessary data
+        repo_queue = load_repo_queue()
+        used_repos = load_used_repos()
+        config = load_config()
+        calendar = load_calendar()
+        engagement_metrics = load_engagement_metrics()
+        
+        # Strategy 1: If pending repos exist, choose next repo
+        if repo_queue:
+            logger.info("Content strategy: Using next repository from queue")
             return {
-                "source": "calendar",
-                "topic": selected_topic,
+                "source": "repo",
+                "topic": repo_queue[0],
                 "template": get_best_performing_template(engagement_metrics),
-                "priority_score": 8
+                "priority_score": 10  # Highest priority
             }
+        
+        # Strategy 2: Use niche topics from config (round-robin order) — enforced
+        niches = config.get("niches", [])
+        if niches:
+            try:
+                next_niche = get_next_niche_round_robin()
+                logger.info("Content strategy: Using niche topic from config (round-robin)")
+                return {
+                    "source": "niche",
+                    "topic": next_niche,
+                    "template": get_best_performing_template(engagement_metrics),
+                    "priority_score": 9  # Prefer niches over calendar
+                }
+            except Exception as e:
+                logger.error(f"Error getting niche topic: {str(e)}")
 
-    # Strategy 4: Fetch trending AI topics as fallback
-    trending_topics = fetch_trending_ai_topics()
-    if trending_topics:
-        selected_topic = trending_topics[0]["topic"]
-        logger.info("Content strategy: Using trending AI topic from ArXiv")
-        return {
-            "source": "trending",
-            "topic": selected_topic,
-            "template": get_best_performing_template(engagement_metrics),
-            "priority_score": 4  # Lower priority
-        }
+        # Strategy 3: If niches absent, try calendar topic
+        try:
+            weekday = datetime.datetime.now().weekday()
+            weekly_schedule = calendar.get("weekly_schedule", {})
+            if str(weekday) in weekly_schedule or weekday in weekly_schedule:
+                day_key = str(weekday) if str(weekday) in weekly_schedule else weekday
+                day_schedule = weekly_schedule[day_key]
+                primary_topic = day_schedule.get("primary_topic", "")
+                subtopics = day_schedule.get("subtopics", [])
+                if primary_topic and subtopics:
+                    selected_topic = f"{primary_topic}: {random.choice(subtopics)}"
+                    logger.info(f"Content strategy: Using calendar topic for day {weekday}")
+                    return {
+                        "source": "calendar",
+                        "topic": selected_topic,
+                        "template": get_best_performing_template(engagement_metrics),
+                        "priority_score": 8
+                    }
+        except Exception as e:
+            logger.error(f"Error processing calendar topic: {str(e)}")
+
+        # Strategy 4: Fetch trending AI topics as fallback
+        try:
+            trending_topics = fetch_trending_ai_topics()
+            if trending_topics:
+                selected_topic = trending_topics[0]["topic"]
+                logger.info("Content strategy: Using trending AI topic from ArXiv")
+                return {
+                    "source": "trending",
+                    "topic": selected_topic,
+                    "template": get_best_performing_template(engagement_metrics),
+                    "priority_score": 4  # Lower priority
+                }
+        except Exception as e:
+            logger.error(f"Error fetching trending topics: {str(e)}")
+        
+    except Exception as e:
+        logger.error(f"Critical error in content strategy selection: {str(e)}")
     
     # Final fallback: Generic AI topic
     logger.info("Content strategy: Using generic AI topic as final fallback")
@@ -332,11 +350,28 @@ def get_next_topic_strategy() -> Dict:
 
 def get_next_content_strategy():
     """Main function to get the next content strategy"""
-    strategy = get_next_topic_strategy()
-    
-    # Log the selected strategy
-    logger.info(
-        f"Selected content strategy: {strategy['source']} - {strategy['topic']} (priority: {strategy['priority_score']})"
-    )
-    
-    return strategy
+    try:
+        strategy = get_next_topic_strategy()
+        
+        # Log the selected strategy
+        logger.info(
+            f"Selected content strategy: {strategy['source']} - {strategy['topic']} (priority: {strategy['priority_score']})"
+        )
+        
+        return strategy
+    except (KeyError, TypeError, ValueError) as e:
+        logger.error(f"Data error in get_next_content_strategy: {str(e)}")
+        return {
+            "source": "fallback",
+            "topic": "Artificial Intelligence and Machine Learning",
+            "template": random.choice(POST_TEMPLATES),
+            "priority_score": 1
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error in get_next_content_strategy: {str(e)}")
+        return {
+            "source": "fallback",
+            "topic": "Artificial Intelligence and Machine Learning",
+            "template": random.choice(POST_TEMPLATES),
+            "priority_score": 1
+        }

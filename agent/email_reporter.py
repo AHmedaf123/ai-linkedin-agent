@@ -92,10 +92,16 @@ def send_email_report(post, is_error: bool = False, is_draft: bool = False, atta
                 if not os.path.exists(file_path):
                     logger.warning(f"Attachment not found: {file_path}")
                     continue
-                with open(file_path, "rb") as f:
+                # Prevent path traversal by restricting to a safe directory
+                allowed_dir = os.path.abspath(os.getenv("ATTACHMENTS_DIR", "."))
+                abs_path = os.path.abspath(file_path)
+                if not abs_path.startswith(allowed_dir):
+                    logger.warning(f"Attachment path traversal attempt blocked: {file_path}")
+                    continue
+                with open(abs_path, "rb") as f:
                     file_content = f.read()
-                filename = os.path.basename(file_path)
-                if file_path.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+                filename = os.path.basename(abs_path)
+                if abs_path.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
                     attachment = MIMEImage(file_content)
                 else:
                     attachment = MIMEApplication(file_content)

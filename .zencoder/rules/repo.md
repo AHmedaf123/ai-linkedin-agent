@@ -41,7 +41,7 @@ Implemented in `agent/llm_generator.py`.
 ## Environment Variables (set via .env or CI secrets)
 - OpenRouter:
   - `OPENROUTER_API_KEY` (required)
-  - `OPENROUTER_MODEL` (default: deepseek/deepseek-r1:free)
+  - `OPENROUTER_MODEL` (default: x-ai/grok-4-fast:free)
 - GitHub:
   - `GITHUB_USERNAME` (default used in code: AHmedaf123)
   - `GH_API_TOKEN` or `GITHUB_TOKEN`

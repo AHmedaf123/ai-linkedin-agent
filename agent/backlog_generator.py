@@ -13,7 +13,7 @@ def fetch_readme_content(repo, github_token=None):
         headers["Authorization"] = f"token {github_token}"
     
     try:
-        r = requests.get(url, headers=headers)
+        r = requests.get(url, headers=headers, timeout=10)
         if r.status_code == 200:
             readme_data = r.json()
             # Decode base64 content
@@ -28,7 +28,7 @@ def fetch_readme_content(repo, github_token=None):
                     if len(' '.join(description_lines)) > 150:  # Limit description length
                         break
             return ' '.join(description_lines)[:200] + "..." if len(' '.join(description_lines)) > 200 else ' '.join(description_lines)
-    except Exception as e:
+    except (requests.RequestException, json.JSONDecodeError, KeyError) as e:
         print(f"Error fetching README for {repo}: {str(e)}")
     
     return None
@@ -40,10 +40,14 @@ def fetch_repo_details(repo):
     if github_token:
         headers["Authorization"] = f"token {github_token}"
     
-    r = requests.get(url, headers=headers)
-    if r.status_code != 200:
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+    except (requests.RequestException, json.JSONDecodeError) as e:
+        print(f"Error fetching repo details for {repo}: {str(e)}")
         return None
-    data = r.json()
     
     # Fetch README content
     readme_content = fetch_readme_content(repo, github_token)
@@ -96,8 +100,12 @@ def generate_repo_post(repo):
     }
 
 def get_next_repo_post(skip_current=False):
-    with open(QUEUE, "r") as f:
-        repos = json.load(f)["pending_repos"]
+    try:
+        with open(QUEUE, "r") as f:
+            repos = json.load(f)["pending_repos"]
+    except (FileNotFoundError, json.JSONDecodeError, PermissionError) as e:
+        print(f"Error loading repo queue: {str(e)}")
+        return None
 
     if not repos:
         return None  # fallback to niche topic
@@ -108,17 +116,30 @@ def get_next_repo_post(skip_current=False):
     else:
         repo = repos.pop(0)  # Take the first repo
         
-    with open(QUEUE, "w") as f:
-        json.dump({"pending_repos": repos}, f, indent=2)
+    try:
+        with open(QUEUE, "w") as f:
+            json.dump({"pending_repos": repos}, f, indent=2)
+    except (PermissionError, OSError) as e:
+        print(f"Error saving repo queue: {str(e)}")
+        return None
+        return None
 
     # Mark repo as used
-    if os.path.exists(USED):
-        with open(USED, "r") as f:
-            used = json.load(f)
-    else:
-        used = []
-    used.append(repo)
-    with open(USED, "w") as f:
-        json.dump(used, f, indent=2)
+    try:
+        if os.path.exists(USED):
+            with open(USED, "r") as f:
+                used = json.load(f)
+        else:
+            used = []
+        used.append(repo)
+        with open(USED, "w") as f:
+            json.dump(used, f, indent=2)
+    except (FileNotFoundError, json.JSONDecodeError, PermissionError, OSError) as e:
+        print(f"Error updating used repos: {str(e)}")
+        # Continue anyway, this is not critical
 
-    return generate_repo_post(repo)
+    try:
+        return generate_repo_post(repo)
+    except Exception as e:
+        print(f"Error generating post for repo {repo}: {str(e)}")
+        return None

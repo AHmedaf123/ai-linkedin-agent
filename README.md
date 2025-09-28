@@ -69,9 +69,34 @@ ai-linkedin-agent/
 
 ## Requirements
 
-- Python 3.x
+- Python 3.8+ (recommended: Python 3.11)
 - `pip install -r requirements.txt`
-- Playwright browser dependencies installed when posting to LinkedIn (Playwright will prompt/install as needed)
+- Playwright browser dependencies: `python -m playwright install chromium`
+
+## Quick Setup
+
+```bash
+# 1. Clone and setup
+git clone https://github.com/your-username/ai-linkedin-agent.git
+cd ai-linkedin-agent
+
+# 2. Install dependencies
+pip install -r requirements.txt
+python -m playwright install chromium
+
+# 3. Initialize project structure
+python setup.py
+
+# 4. Configure environment
+cp .env.template .env
+# Edit .env with your API keys and credentials
+
+# 5. Validate setup
+python health_check.py
+
+# 6. Test run
+python run.py --dry-run --force
+```
 
 ## Configuration
 
@@ -90,7 +115,7 @@ Edit these files and provide environment variables before running:
 
 - **OpenRouter**
   - `OPENROUTER_API_KEY` (required for LLM)
-  - `OPENROUTER_MODEL` (default: `deepseek/deepseek-r1:free`)
+  - `OPENROUTER_MODEL` (default: `x-ai/grok-4-fast:free`)
 - **GitHub**
   - `GITHUB_USERNAME` (default in code: `AHmedaf123`)
   - `GH_API_TOKEN` or `GITHUB_TOKEN`
@@ -115,10 +140,17 @@ cd ai-linkedin-agent
 
 # Install dependencies
 pip install -r requirements.txt
+python -m playwright install chromium
+
+# Initialize project
+python setup.py
 
 # Set up environment variables
 cp .env.template .env
 # Edit .env with your actual API keys and credentials
+
+# Validate setup
+python health_check.py
 ```
 
 ### Quick start (preview only)

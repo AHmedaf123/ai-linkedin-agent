@@ -55,10 +55,25 @@ def main():
             logger.debug(f"Generated file: {file}")
         
         # Provide instructions for viewing
-        dashboard_dir = os.path.dirname(files[0]) if files else args.output_dir
-        print(f"\nTo view the dashboard, open the files in the directory:\n{dashboard_dir}")
+        if files:
+            dashboard_dir = os.path.dirname(files[0])
+            print(f"\nTo view the dashboard, open the files in the directory:\n{dashboard_dir}")
+        else:
+            print(f"\nNo files generated. Check the output directory: {args.output_dir}")
         
         return 0
+    except FileNotFoundError as e:
+        logger.error(f"File not found during dashboard generation: {str(e)}")
+        print(f"Error: Required file not found: {str(e)}")
+        return 1
+    except PermissionError as e:
+        logger.error(f"Permission denied during dashboard generation: {str(e)}")
+        print(f"Error: Permission denied: {str(e)}")
+        return 1
+    except ValueError as e:
+        logger.error(f"Invalid data in metrics file: {str(e)}")
+        print(f"Error: Invalid metrics data: {str(e)}")
+        return 1
     except Exception as e:
         logger.error(f"Error generating dashboard: {str(e)}", exc_info=True)
         print(f"Error generating dashboard: {str(e)}")

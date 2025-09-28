@@ -16,16 +16,17 @@ from playwright.sync_api import (
 )
 
 # Stealth mode (graceful fallback)
+# Stealth mode (graceful fallback)
 try:
     from playwright_stealth import stealth_sync as _stealth_sync
     def apply_stealth(page: Page) -> None:
         _stealth_sync(page)
-except Exception:
+except ImportError:
     def apply_stealth(page: Page) -> None:
         try:
             page.add_init_script("Object.defineProperty(navigator, 'webdriver', { get: () => undefined });")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to apply stealth script: {e}")
 
 # Logging
 logger = logging.getLogger("linkedin-agent")
@@ -34,7 +35,7 @@ if not logger.handlers:
 try:
     logger.info(f"Python Version: {sys.version}")
     logger.info(f"Playwright Version: {playwright.__version__}")
-except Exception:
+except AttributeError:
     pass
 
 # Exceptions
@@ -47,18 +48,21 @@ class LinkedInAuthError(LinkedInError):
 class LinkedInPostError(LinkedInError):
     pass
 
-# Small helpers
 
+# Small helpers
 def _random_wait(min_ms: int = 300, max_ms: int = 900) -> None:
     time.sleep(random.randint(min_ms, max_ms) / 1000)
 
 def _save_debug_info(page: Page, prefix: str) -> None:
+    import os.path
     try:
-        page.screenshot(path=f"{prefix}_screenshot.png")
-        with open(f"{prefix}_page.html", "w", encoding="utf-8") as f:
+        # Sanitize prefix to prevent path traversal
+        safe_prefix = re.sub(r'[^a-zA-Z0-9_-]', '_', os.path.basename(prefix))
+        page.screenshot(path=f"{safe_prefix}_screenshot.png")
+        with open(f"{safe_prefix}_page.html", "w", encoding="utf-8") as f:
             f.write(page.content())
-        logger.info(f"Saved debug: {prefix}_screenshot.png, {prefix}_page.html")
-    except Exception as e:
+        logger.info(f"Saved debug: {safe_prefix}_screenshot.png, {safe_prefix}_page.html")
+    except (OSError, IOError, PlaywrightTimeoutError) as e:
         logger.warning(f"Failed to save debug info: {e}")
 
 class LinkedInPoster:
@@ -121,9 +125,9 @@ class LinkedInPoster:
             # Hide webdriver quickly as extra fallback
             try:
                 self.page.add_init_script("Object.defineProperty(navigator, 'webdriver', { get: () => undefined });")
-            except Exception:
-                pass
-        except Exception as e:
+            except (OSError, IOError, PlaywrightTimeoutError) as e:
+                logger.debug(f"Failed to add init script: {e}")
+        except (PlaywrightTimeoutError, OSError, IOError) as e:
             self._teardown()
             raise LinkedInError(f"Failed to setup browser: {e}")
 
@@ -131,12 +135,12 @@ class LinkedInPoster:
         try:
             if self.context:
                 self.context.close()
-        except Exception:
+        except (PlaywrightTimeoutError, OSError, IOError):
             pass
         try:
             if self.browser:
                 self.browser.close()
-        except Exception:
+        except (PlaywrightTimeoutError, OSError, IOError):
             pass
 
     # --- Navigation helpers ---
@@ -147,7 +151,7 @@ class LinkedInPoster:
             try:
                 self.page.get_by_role("button", name=label, exact=False).click(timeout=800)
                 _random_wait(150, 300)
-            except Exception:
+            except PlaywrightTimeoutError:
                 pass
 
     def _wait_for_feed_ui(self, timeout_ms: int = 120000) -> None:
@@ -158,29 +162,41 @@ class LinkedInPoster:
             'button[aria-label*="Start a post" i]',
             'button:has-text("Start a post")',
             'button:has-text("Create a post")',
-            'section.scaffold-layout__main',
-            'div.scaffold-finite-scroll__content',
+            '.share-box-feed-entry',
+            '[data-test-share-box]',
+            'main[role="main"]',
+            '.scaffold-layout__main',
+            '.feed-container',
+            '.scaffold-finite-scroll__content',
             'a[href*="/feed/"]',
+            'nav[aria-label*="Primary Navigation" i]',
+            '.feed-shared-update-v2',
+            '[data-test-id="main-feed-activity-card"]',
         ]
         while time.time() < end:
-            for sel in selectors:
-                try:
-                    if self.page.locator(sel).first.count() > 0:
-                        return
-                except Exception as e:
-                    last_err = e
+            try:
+                if "/feed" in (self.page.url or ""):
+                    for sel in selectors:
+                        try:
+                            if self.page.locator(sel).first.count() > 0:
+                                return
+                        except PlaywrightTimeoutError as e:
+                            last_err = e
+            except PlaywrightTimeoutError as e:
+                last_err = e
             try:
                 self.page.get_by_role("button", name=re.compile("post|share", re.I)).first.wait_for(timeout=1000)
                 return
-            except Exception as e:
+            except PlaywrightTimeoutError as e:
                 last_err = e
-            self.page.wait_for_timeout(300)
+            self.page.wait_for_timeout(500)
         raise PlaywrightTimeoutError(f"Feed UI not detected within {timeout_ms} ms: {last_err}")
 
     # --- Login (email/password only) ---
     def _go_to_login_form(self, login_timeout_ms: int) -> None:
         assert self.page
-        self.page.goto("https://www.linkedin.com/login", wait_until="networkidle", timeout=login_timeout_ms)
+        self.page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded", timeout=login_timeout_ms)
+        _random_wait()
         self._dismiss_banners()
         email_sel = ':is(input#username, input[name="session_key"], input#session_key, input[name="email"])'
         pass_sel = ':is(input#password, input[name="session_password"], input#session_password)'
@@ -253,7 +269,7 @@ class LinkedInPoster:
             self._wait_for_feed_ui(timeout_ms=30000)
             logger.info("Using existing session (no login required)")
             return
-        except Exception:
+        except PlaywrightTimeoutError:
             pass
 
         # Otherwise perform fresh login with credentials
@@ -273,7 +289,7 @@ class LinkedInPoster:
         # Submit (re-apply stealth before clicking Sign in)
         try:
             apply_stealth(self.page)
-        except Exception:
+        except PlaywrightTimeoutError:
             pass
         clicked = False
         for sel in ['button[type="submit"]', 'form button:has-text("Sign in")', 'button:has-text("Sign in")']:
@@ -281,7 +297,7 @@ class LinkedInPoster:
                 self.page.locator(sel).first.click(timeout=3000)
                 clicked = True
                 break
-            except Exception:
+            except PlaywrightTimeoutError:
                 pass
         if not clicked:
             _save_debug_info(self.page, "login_submit_error")
@@ -297,7 +313,7 @@ class LinkedInPoster:
         except PlaywrightTimeoutError:
             try:
                 self.page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=30000)
-            except Exception:
+            except PlaywrightTimeoutError:
                 pass
         self._fail_if_security_check()
         self._wait_for_feed_ui(timeout_ms=login_nav_timeout_ms)
@@ -307,73 +323,138 @@ class LinkedInPoster:
         try:
             self.context.storage_state(path=self.storage_state_path)
             logger.info(f"Saved LinkedIn session to {self.storage_state_path}")
-        except Exception as e:
+        except PlaywrightTimeoutError as e:
             logger.warning(f"Failed to save storage state: {e}")
 
     # --- Posting ---
     def _open_post_composer(self) -> None:
         assert self.page
-        labels = ["Start a post", "Create a post", "Post", "Share", "Start post"]
-        for label in labels:
+        composer_selectors = [
+            'button:has-text("Start a post")',
+            'button:has-text("Create a post")', 
+            'button:has-text("Share")',
+            'button:has-text("Post")',
+            'button[aria-label*="Start a post" i]',
+            'button[aria-label*="Create a post" i]',
+            'button[aria-label*="Share" i]',
+            'button.share-box-feed-entry__trigger',
+            'button[data-test-share-box-trigger]',
+            'button[aria-label*="post" i]',
+        ]
+        for selector in composer_selectors:
             try:
-                self.page.get_by_role("button", name=label, exact=False).first.click(timeout=2000)
-                return
-            except Exception:
-                pass
+                button = self.page.locator(selector).first
+                if button.count() > 0 and button.is_visible():
+                    button.click(timeout=3000)
+                    _random_wait(500, 1000)
+                    return
+            except PlaywrightTimeoutError:
+                continue
         try:
-            self.page.locator('button[aria-label*="post" i], button[aria-label*="share" i]').first.click(timeout=3000)
-            return
-        except Exception as e:
-            _save_debug_info(self.page, "composer_button_error")
-            raise LinkedInPostError(f"Could not open post composer: {e}")
+            share_box = self.page.locator('.share-box-feed-entry, .share-creation-state, [data-test-share-box]').first
+            if share_box.count() > 0 and share_box.is_visible():
+                share_box.click(timeout=3000)
+                _random_wait(500, 1000)
+                return
+        except PlaywrightTimeoutError:
+            pass
+        _save_debug_info(self.page, "composer_button_error")
+        raise LinkedInPostError("Could not open post composer - no suitable button found")
 
     def _enter_post_content(self, text: str) -> None:
         assert self.page
-        # Target the editable textbox inside dialog or full-page composer
-        editor_selectors = [
-            'div[role="dialog"] div[contenteditable="true"][role="textbox"]',
-            'div[contenteditable="true"][role="textbox"]',
+        editor_candidates = [
+            self.page.locator('div[contenteditable="true"][data-placeholder]'),
+            self.page.locator('div[contenteditable="true"].ql-editor'),
+            self.page.locator('div[contenteditable="true"][role="textbox"]'),
+            self.page.locator('div[data-test-ql-editor-contenteditable="true"]'),
+            self.page.locator('.ql-editor[contenteditable="true"]'),
+            self.page.locator('div[contenteditable="true"]').filter(has_text="What do you want to talk about?"),
+            self.page.locator('div[contenteditable="true"]').filter(has_text="Share your thoughts"),
+            self.page.locator('div[contenteditable="true"]'),
         ]
         editor = None
-        for sel in editor_selectors:
+        for candidate in editor_candidates:
             try:
-                loc = self.page.locator(sel).first
-                if loc and loc.count() > 0:
-                    editor = loc
-                    break
-            except Exception:
+                if candidate and candidate.count() > 0:
+                    first = candidate.first
+                    if first.is_visible():
+                        editor = first
+                        break
+            except PlaywrightTimeoutError:
                 pass
         if not editor:
             _save_debug_info(self.page, "composer_editor_missing")
             raise LinkedInPostError("Post editor not found.")
         editor.click()
-        editor.fill("")
+        _random_wait(200, 500)
+        try:
+            # Clear existing content
+# --- FILE DESCRIPTION ---
+# linkedin_poster.py
+#
+# This module provides the LinkedInPoster class for automating LinkedIn post creation using Playwright.
+# It supports login via email/password or session reuse, navigates the LinkedIn UI, and posts content.
+# Exception handling is improved to avoid catching generic exceptions, and file path usage is sanitized.
+#
+# Usage:
+#   poster = LinkedInPoster(email, password)
+#   poster._setup()
+#   poster._login()
+#   poster._open_post_composer()
+#   poster._enter_post_content("Your post text")
+#   poster._teardown()
+            editor.fill("")
+        except Exception:
+            # If fill doesn't work, try selecting all and typing
+            try:
+                self.page.keyboard.press("Control+a")
+                _random_wait(100, 200)
+            except Exception:
+                pass
+        
+        # Type the content
         editor.type(text, delay=random.randint(20, 60))
         _random_wait(400, 900)
 
+
     def _publish_post(self) -> None:
         assert self.page
-        # Click Post button in dialog or full composer
-        clicked = False
-        for sel in [
+        # Try multiple selectors for the Post button
+        post_button_selectors = [
+            'button[data-test-share-actions-post-button]',
+            'button.share-actions__primary-action',
             'div[role="dialog"] button:has-text("Post")',
-            'button:has-text("Post")',
             'div[role="dialog"] button[aria-label*="Post" i]',
-        ]:
+            'button:has-text("Post")',
+        ]
+        
+        clicked = False
+        for selector in post_button_selectors:
             try:
-                self.page.locator(sel).first.click(timeout=4000)
-                clicked = True
-                break
+                button = self.page.locator(selector).first
+                if button.count() > 0 and button.is_visible():
+                    button.click(timeout=4000)
+                    clicked = True
+                    break
             except Exception:
-                pass
+                continue
+                
         if not clicked:
             _save_debug_info(self.page, "composer_publish_button_missing")
             raise LinkedInPostError("Post button not found.")
+            
+        # Wait for the post to be published
+        _random_wait(1000, 2000)
+        
         # Wait for composer to close or feed to be visible
         try:
             self.page.wait_for_selector('div[role="dialog"]', state='detached', timeout=30000)
-        except Exception:
+        except PlaywrightTimeoutError:
             pass
+        except playwright.sync_api.Error:
+            pass
+            
         self._wait_for_feed_ui(timeout_ms=60000)
 
     # --- Public API ---
@@ -396,11 +477,16 @@ class LinkedInPoster:
             except Exception:
                 logger.warning("Could not verify post snippet in feed within timeout.")
             return True
-        except Exception as e:
+        except (LinkedInAuthError, LinkedInPostError, LinkedInError, PlaywrightTimeoutError) as e:
             logger.error(f"Failed to post to LinkedIn: {e}", exc_info=True)
             if self.page:
                 _save_debug_info(self.page, "final_error_state")
             raise
+        except Exception as e:
+            logger.error(f"Unexpected error during LinkedIn posting: {e}", exc_info=True)
+            if self.page:
+                _save_debug_info(self.page, "final_error_state")
+            raise LinkedInError(f"Unexpected error: {e}") from e
         finally:
             self._teardown()
 # Entry point compatible with existing imports

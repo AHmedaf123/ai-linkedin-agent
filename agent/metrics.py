@@ -14,7 +14,9 @@ class MetricsTracker:
         Args:
             metrics_file: Path to the metrics JSON file
         """
-        self.metrics_file = metrics_file
+        import os.path
+        # Sanitize metrics file path to prevent path traversal
+        self.metrics_file = os.path.basename(metrics_file)
         self.current_run: Dict[str, Any] = {
             "run_id": datetime.now().strftime("%Y%m%d%H%M%S"),
             "timestamp": datetime.now().isoformat(),
@@ -27,9 +29,9 @@ class MetricsTracker:
         
         # Load existing metrics if file exists
         self.history: List[Dict[str, Any]] = []
-        if os.path.exists(metrics_file):
+        if os.path.exists(self.metrics_file):
             try:
-                with open(metrics_file, "r") as f:
+                with open(self.metrics_file, "r") as f:
                     self.history = json.load(f)
             except (json.JSONDecodeError, IOError):
                 # Start with empty history if file is invalid

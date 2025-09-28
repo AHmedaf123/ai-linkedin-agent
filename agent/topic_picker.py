@@ -88,8 +88,18 @@ def get_weekday_topic() -> Dict[str, Any]:
         }
     
     # Load calendar configuration
-    with open(calendar_path, "r") as f:
-        calendar = yaml.safe_load(f)
+    try:
+        with open(calendar_path, "r") as f:
+            calendar = yaml.safe_load(f)
+    except (FileNotFoundError, PermissionError, yaml.YAMLError) as e:
+        logger.warning(f"Failed to load calendar: {e}")
+        return {
+            "primary_topic": "Artificial Intelligence",
+            "subtopic": None,
+            "post_type": "general",
+            "part": 1,
+            "total": 1
+        }
     
     # Get current weekday
     weekday = datetime.datetime.now().weekday()
@@ -206,6 +216,7 @@ def get_calendar_template(post_type: str) -> Dict[str, str]:
     calendar_path = "agent/calendar.yaml"
     if not os.path.exists(calendar_path):
         # Fallback to default templates
+        logger.warning("calendar.yaml not found. Falling back to default post templates.")
         return {
             "title_template": "Deep Dive: {topic}",
             "body_template": """💡 Let's talk about **{topic}** today.  
@@ -215,8 +226,18 @@ Exploring practical applications, challenges, and future opportunities in this e
         }
     
     # Load calendar configuration
-    with open(calendar_path, "r") as f:
-        calendar = yaml.safe_load(f)
+    try:
+        with open(calendar_path, "r") as f:
+            calendar = yaml.safe_load(f)
+    except (FileNotFoundError, PermissionError, yaml.YAMLError) as e:
+        logger.warning(f"Failed to load calendar templates: {e}")
+        return {
+            "title_template": "Deep Dive: {topic}",
+            "body_template": """💡 Let's talk about **{topic}** today.  
+Exploring practical applications, challenges, and future opportunities in this exciting field.
+
+{hashtags}"""
+        }
     
     # Get templates for post type
     templates = calendar.get("post_templates", {})
@@ -248,12 +269,18 @@ def get_niche_post(topic: Optional[str] = None, template: Optional[Dict[str, str
         Dict containing post details
     """
     # Get configuration
-    cfg = yaml.safe_load(open("agent/config.yaml"))
+    try:
+        with open("agent/config.yaml", "r") as f:
+            cfg = yaml.safe_load(f)
+    except (FileNotFoundError, PermissionError, yaml.YAMLError) as e:
+        logger.warning(f"Failed to load config: {e}")
+        cfg = {"niches": ["Artificial Intelligence"]}
     
     # If topic is provided, use it directly
     if topic:
         primary_topic = topic
         subtopic = topic
+        post_type = "general"
         part = 1
         total = 1
         # No template selection needed if LLM succeeds
@@ -267,7 +294,10 @@ def get_niche_post(topic: Optional[str] = None, template: Optional[Dict[str, str
         total = topic_info["total"]
     else:
         # Random topic from config
-        primary_topic = random.choice(cfg["niches"])
+        niches = cfg.get("niches", ["Artificial Intelligence"])
+        if not niches:
+            niches = ["Artificial Intelligence"]
+        primary_topic = random.choice(niches)
         subtopic = primary_topic
         part = 1
         total = 1
@@ -285,8 +315,8 @@ def get_niche_post(topic: Optional[str] = None, template: Optional[Dict[str, str
                 "total": total,
             }
     except Exception as e:
+        logger.error(f"LLM generation failed: {e}")
         # Fall back to templates below
-        pass
     
     # Fallback: use templates with generated hashtags
     if template is None:

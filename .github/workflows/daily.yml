@@ -22,12 +22,20 @@ jobs:
       AI_LINKED_INSECRETS: ${{ secrets.AI_LINKED_INSECRETS }}
       HEADLESS: true  # ✅ Force headless globally
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -35,8 +43,16 @@ jobs:
           pip install -r requirements.txt
 
       # Install Playwright browsers and dependencies to prevent runtime posting errors
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Install Playwright browsers
-        run: python -m playwright install --with-deps
+        run: python -m playwright install --with-deps chromium
 
       - name: Load packed secrets
         if: ${{ env.AI_LINKED_INSECRETS != '' }}
@@ -66,6 +82,9 @@ jobs:
           LINKEDIN_LOGIN_NAV_TIMEOUT_MS: "300000"
           LINKEDIN_DEFAULT_TIMEOUT_MS: "120000"
           HEADLESS: "true"
+          ENABLE_POST: "true"
+          LOG_LEVEL_CONSOLE: "INFO"
+          LOG_LEVEL_FILE: "DEBUG"
         run: |
           echo "Using configured timeouts and headless mode"
           python run.py --force

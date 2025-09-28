@@ -19,7 +19,12 @@ class MetricsDashboard:
         """
         self.metrics_file = metrics_file
         self.metrics_data = self._load_metrics()
-        self.output_dir = os.path.join(os.path.dirname(os.path.abspath(metrics_file)), "dashboard")
+        # Prevent path traversal by restricting metrics_file to a trusted directory
+        base_dir = os.path.abspath(os.getcwd())
+        metrics_path = os.path.abspath(metrics_file)
+        if not metrics_path.startswith(base_dir):
+            raise ValueError("Invalid metrics_file path: Path traversal detected.")
+        self.output_dir = os.path.join(os.path.dirname(metrics_path), "dashboard")
         os.makedirs(self.output_dir, exist_ok=True)
 
     def _load_metrics(self) -> Dict[str, Any]:
@@ -48,15 +53,24 @@ class MetricsDashboard:
         if not events:
             return pd.DataFrame()
 
-        # Normalize the events data
-        df = pd.json_normalize(events)
-        
-        # Convert timestamp to datetime
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-            df["date"] = df["timestamp"].dt.date
+        try:
+            # Normalize the events data
+            df = pd.json_normalize(events)
+            
+            # Convert timestamp to datetime
+            try:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+                df["date"] = df["timestamp"].dt.date
+            except Exception as e:
+                print(f"Error converting 'timestamp' to datetime: {e}")
+                df["timestamp"] = pd.NaT
+                df["date"] = None
+                df["date"] = df["timestamp"].dt.date
 
-        return df
+            return df
+        except (ValueError, TypeError, KeyError) as e:
+            print(f"Error processing events data: {e}")
+            return pd.DataFrame()
 
     def generate_execution_time_chart(self) -> str:
         """Generate a chart showing execution times for different workflow phases.

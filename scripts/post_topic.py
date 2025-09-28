@@ -29,6 +29,11 @@ def build_full_text(post: dict) -> str:
 
 
 def save_preview(post: dict, full_text: str, path_txt: str = "post_preview.txt") -> None:
+    # Sanitize path to prevent directory traversal
+    safe_path = os.path.basename(path_txt)
+    if not safe_path or safe_path in ('.', '..'):
+        safe_path = "post_preview.txt"
+    
     preview = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "title": post.get("title"),
@@ -37,7 +42,7 @@ def save_preview(post: dict, full_text: str, path_txt: str = "post_preview.txt")
         "hashtags": post.get("hashtags", []),
         "text": full_text,
     }
-    with open(path_txt, "w", encoding="utf-8") as f:
+    with open(safe_path, "w", encoding="utf-8") as f:
         f.write(preview["text"])  # write the shareable text itself for quick copy
     # Also keep a JSON artifact next to it
     with open("latest_post.json", "w", encoding="utf-8") as jf:

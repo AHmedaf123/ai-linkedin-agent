@@ -91,12 +91,18 @@ def set_github_output(name: str, value: str) -> None:
 
 def save_artifact(content: str, filename: str) -> None:
     """Save content to an artifact file for debugging"""
+    import os.path
     try:
-        with open(filename, "w", encoding="utf-8") as f:
+        # Sanitize filename to prevent path traversal
+        safe_filename = os.path.basename(filename)
+        artifact_dir = "artifacts"
+        os.makedirs(artifact_dir, exist_ok=True)
+        artifact_path = os.path.join(artifact_dir, safe_filename)
+        with open(artifact_path, "w", encoding="utf-8") as f:
             f.write(content)
-        logger.info(f"Saved artifact: {filename}")
-    except Exception as e:
-        logger.error(f"Failed to save artifact {filename}: {str(e)}")
+        logger.info(f"Saved artifact: {artifact_path}")
+    except (OSError, IOError) as e:
+        logger.error(f"Failed to save artifact {safe_filename}: {str(e)}")
 
 # --- Main LinkedInAgent Class ---
 class LinkedInAgent:
@@ -166,23 +172,71 @@ class LinkedInAgent:
         self.logger.info("Fetching LinkedIn engagement metrics", 
                          extra={"event": "engagement_fetch_start"})
         
-        engagement_data = fetch_linkedin_engagement(linkedin_email, linkedin_password)
-        engagement_stats = get_engagement_stats()
-        
-        self.logger.info(
-            f"Fetched engagement metrics for {len(engagement_data)} posts",
-            extra={
-                "event": "engagement_fetch_success",
+        try:
+            engagement_data = fetch_linkedin_engagement(linkedin_email, linkedin_password)
+        except Exception as fetch_error:
+            self.logger.error(
+                f"Error fetching LinkedIn engagement: {fetch_error}",
+                exc_info=True,
+                extra={"event": "engagement_fetch_failure"}
+            )
+            self.metrics.record_event(
+                "engagement_fetch_failure",
+                {
+                    "error_type": type(fetch_error).__name__,
+                    "message": str(fetch_error)
+                }
+            )
+            self.metrics.increment_counter("errors")
+            return {"avg_likes": 0, "avg_comments": 0}
+
+        try:
+            engagement_stats = get_engagement_stats()
+        except Exception as stats_error:
+            self.logger.error(
+                f"Error computing engagement statistics: {stats_error}",
+                exc_info=True,
+                extra={"event": "engagement_stats_failure"}
+            )
+            self.metrics.record_event(
+                "engagement_stats_failure",
+                {
+                    "error_type": type(stats_error).__name__,
+                    "message": str(stats_error)
+                }
+            )
+            self.metrics.increment_counter("errors")
+            return {"avg_likes": 0, "avg_comments": 0}
+
+        if not isinstance(engagement_stats, dict):
+            engagement_stats = {}
+
+        if engagement_data is not None:
+            self.logger.info(
+                f"Fetched engagement metrics for {len(engagement_data)} posts",
+                extra={
+                    "event": "engagement_fetch_success",
+                    "post_count": len(engagement_data),
+                    "avg_likes": engagement_stats.get("avg_likes", 0),
+                    "avg_comments": engagement_stats.get("avg_comments", 0)
+                }
+            )
+            self.metrics.record_event("engagement_fetch_success", {
                 "post_count": len(engagement_data),
                 "avg_likes": engagement_stats.get("avg_likes", 0),
                 "avg_comments": engagement_stats.get("avg_comments", 0)
+            })
+        else:
+            fallback_stats = {
+                "avg_likes": engagement_stats.get("avg_likes", 0) if isinstance(engagement_stats, dict) else 0,
+                "avg_comments": engagement_stats.get("avg_comments", 0) if isinstance(engagement_stats, dict) else 0
             }
-        )
-        self.metrics.record_event("engagement_fetch_success", {
-            "post_count": len(engagement_data),
-            "avg_likes": engagement_stats.get("avg_likes", 0),
-            "avg_comments": engagement_stats.get("avg_comments", 0)
-        })
+            self.logger.warning(
+                "Failed to fetch engagement data",
+                extra={"event": "engagement_fetch_no_data", **fallback_stats}
+            )
+            self.metrics.record_event("engagement_fetch_no_data", fallback_stats)
+            engagement_stats = fallback_stats
         return engagement_stats
 
     def _regenerate_post_content(self, current_source: str, regeneration_count: int, 
@@ -212,23 +266,40 @@ class LinkedInAgent:
             extra={
                 "event": "regeneration_strategy_selected",
                 "source": new_source,
-                "priority_score": new_strategy["priority_score"]
+                "priority_score": new_strategy.get("priority_score", None)
             }
         )
-        
-        # Generate post based on the new strategy
-        if new_source == "repo":
-            post = get_next_repo_post(skip_current=True)
-        elif new_source in ["niche", "calendar", "trending", "fallback"]:
-            post = get_niche_post(
-                topic=new_strategy["topic"], 
-                template=new_strategy["template"],
-                force_template_rotation=True # Ensure a fresh template if possible
+        try:
+            # Log the new content strategy, handle missing keys gracefully
+            self.logger.info(
+                f"Using new content strategy for regeneration: {new_source}",
+                extra={
+                    "event": "regeneration_strategy_selected",
+                    "source": new_source,
+                    "priority_score": new_strategy.get("priority_score", None)
+                }
             )
-        else:
-            # Fallback to niche topic with different template as last resort
-            post = get_niche_post(force_template_rotation=True)
-            self.logger.warning(f"Unknown regeneration content strategy source: {new_source}, falling back to niche topic")
+        except Exception as log_exc:
+            self.logger.warning(f"Error logging regeneration strategy: {str(log_exc)}")
+
+        # Generate post based on the new strategy
+        try:
+            if new_source == "repo":
+                post = get_next_repo_post(skip_current=True)
+            elif new_source in ["niche", "calendar", "trending", "fallback"]:
+                post = get_niche_post(
+                    topic=new_strategy.get("topic", None), 
+                    template=new_strategy.get("template", None),
+                    force_template_rotation=True # Ensure a fresh template if possible
+                )
+            else:
+                # Fallback to niche topic with different template as last resort
+                post = get_niche_post(force_template_rotation=True)
+                self.logger.warning(f"Unknown regeneration content strategy source: {new_source}, falling back to niche topic")
+        except Exception as e:
+            self.logger.error(f"Error generating post content: {str(e)}")
+            # Fallback to basic niche post
+            post = get_niche_post()
         
         return post
 

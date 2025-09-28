@@ -102,6 +102,14 @@ class RetryQueue:
             status: New status ("success", "failed", "pending")
             error: Optional error message
         """
+        # Validate inputs
+        if not item_id or not isinstance(item_id, str):
+            logger.error("Invalid item_id provided")
+            return False
+        if status not in ["success", "failed", "pending", "max_retries_reached"]:
+            logger.error(f"Invalid status: {status}")
+            return False
+            
         try:
             for i, item in enumerate(self.queue["items"]):
                 if item["id"] == item_id:
@@ -143,6 +151,11 @@ class RetryQueue:
         Args:
             max_age_days: Maximum age of items to keep (in days)
         """
+        # Validate input
+        if not isinstance(max_age_days, int) or max_age_days < 1:
+            logger.error(f"Invalid max_age_days: {max_age_days}")
+            return
+            
         try:
             now = datetime.datetime.now()
             max_age = datetime.timedelta(days=max_age_days)

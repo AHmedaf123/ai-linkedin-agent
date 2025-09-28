@@ -9,10 +9,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from agent.logging_setup import get_logger
-import json
-import os
-from typing import Dict
-from agent.logging_setup import get_logger
 
 # Initialize logger
 logger = get_logger("engagement_tracker")
@@ -38,7 +34,10 @@ class LinkedInEngagementTracker:
         """
         self.username = username
         self.password = password
-        self.profile_url = profile_url or f"{LINKEDIN_PROFILE_URL}{username}"
+        if profile_url:
+            self.profile_url = profile_url
+        else:
+            self.profile_url = f"{LINKEDIN_PROFILE_URL}{username}"
         self.driver = None
         self.metrics_history = self._load_metrics_history()
     

@@ -127,7 +127,11 @@ class LLMGenerator:
             if not isinstance(repo_info, dict):
                 return None
             messages = LLMGenerator._build_repo_prompt(repo_info)
-        raw_text = LLMGenerator._call_openrouter(messages)
+        try:
+            raw_text = LLMGenerator._call_openrouter(messages)
+        except Exception as e:
+            logger.error(f"OpenRouter API call failed: {e}")
+            return None
         title, body, hashtags = LLMGenerator._postprocess_content(raw_text or "")
         optimized = optimize_post_full(body)
         return {

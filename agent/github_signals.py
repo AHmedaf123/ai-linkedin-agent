@@ -107,6 +107,7 @@ def fetch_recent_github_activity(username: str, days: int = 2, token: Optional[s
         logger.warning("No GitHub events retrieved")
         return signal
     
+    recent = []
     try:
         # Filter events by date
         cutoff = dt.datetime.utcnow() - dt.timedelta(days=days)
@@ -116,24 +117,27 @@ def fetch_recent_github_activity(username: str, days: int = 2, token: Optional[s
         
         # Extract relevant information
         for e in recent:
-            t = e.get("type")
-            repo = e.get("repo", {}).get("name", "")
-            if t == "PushEvent":
-                for c in e["payload"].get("commits", []):
-                    signal["commits"].append({
-                        "repo": repo,
-                        "msg": c.get("message","").strip()
-                    })
-            elif t == "PullRequestEvent":
-                pr = e["payload"]["pull_request"]
-                signal["prs"].append({"repo": repo, "title": pr.get("title","").strip(), "action": e["payload"].get("action","")})
-            elif t == "WatchEvent":  # starred
-                signal["stars"].append({"repo": repo})
-            elif t == "IssuesEvent":
-                issue = e["payload"]["issue"]
-                signal["issues"].append({"repo": repo, "title": issue.get("title","").strip(), "action": e["payload"].get("action","")})
-    except Exception as e:
+            try:
+                t = e.get("type")
+                repo = e.get("repo", {}).get("name", "")
+                if t == "PushEvent":
+                    for c in e["payload"].get("commits", []):
+                        signal["commits"].append({
+                            "repo": repo,
+                            "msg": c.get("message","").strip()
+                        })
+                elif t == "PullRequestEvent":
+                    pr = e["payload"]["pull_request"]
+                    signal["prs"].append({"repo": repo, "title": pr.get("title","").strip(), "action": e["payload"].get("action","")})
+                elif t == "WatchEvent":  # starred
+                    signal["stars"].append({"repo": repo})
+                elif t == "IssuesEvent":
+                    issue = e["payload"]["issue"]
+                    signal["issues"].append({"repo": repo, "title": issue.get("title","").strip(), "action": e["payload"].get("action","")})
+            except (KeyError, TypeError, ValueError) as e:
+                logger.warning(f"Error processing individual GitHub event: {str(e)}")
+                continue
+    except (ValueError, TypeError) as e:
         logger.error(f"Error processing GitHub events: {str(e)}")
-    
     logger.info(f"Processed {len(recent)} GitHub events: {len(signal['commits'])} commits, {len(signal['prs'])} PRs, {len(signal['stars'])} stars, {len(signal['issues'])} issues")
     return signal
