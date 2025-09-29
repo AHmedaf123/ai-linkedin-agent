@@ -147,12 +147,32 @@ class LinkedInPoster:
     def _dismiss_banners(self) -> None:
         if not self.page:
             return
-        for label in ["Accept", "Accept cookies", "Allow all", "Agree", "Continue", "Got it", "Close", "Not now", "Skip"]:
+
+        # A list of selectors for common banners, from specific to general.
+        selectors = [
+            'button[aria-label="Dismiss"]',  # Common on modals
+            'button:has-text("Accept all cookies")',
+            'button:has-text("Accept")',
+            'button:has-text("Skip to main content")',
+            'button:has-text("Skip")',
+            'button:has-text("Close")',
+            'button:has-text("Not now")',
+        ]
+
+        for selector in selectors:
             try:
-                self.page.get_by_role("button", name=label, exact=False).click(timeout=800)
-                _random_wait(150, 300)
+                # Use .first to avoid strict mode violations if multiple buttons match
+                button = self.page.locator(selector).first
+                if button.is_visible():
+                    logger.info(f"Attempting to dismiss banner with selector: {selector}")
+                    button.click(timeout=1500)
+                    _random_wait(250, 500)
             except PlaywrightTimeoutError:
-                pass
+                # This is expected if the banner doesn't exist
+                logger.debug(f"Banner with selector '{selector}' not found or timed out.")
+            except Exception as e:
+                # Log other unexpected errors
+                logger.warning(f"An error occurred while trying to dismiss a banner with selector '{selector}': {e}")
 
     def _wait_for_feed_ui(self, timeout_ms: int = 120000) -> None:
         assert self.page

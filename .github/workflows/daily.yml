@@ -73,8 +73,7 @@ jobs:
                   print(f"{k}={v}", file=f)
           PY
 
-      # ✅ Run AI Agent with CI-safe settings
-      - name: Run AI Agent (Content Generation)
+      - name: Run AI Agent
         env:
           LINKEDIN_STORAGE_ONLY: "true"
           LINKEDIN_STORAGE_B64: ${{ secrets.LINKEDIN_STORAGE_B64 }}
@@ -82,29 +81,18 @@ jobs:
           LINKEDIN_LOGIN_NAV_TIMEOUT_MS: "120000"
           LINKEDIN_DEFAULT_TIMEOUT_MS: "60000"
           HEADLESS: "true"
-          
           LOG_LEVEL_CONSOLE: "INFO"
           LOG_LEVEL_FILE: "DEBUG"
-        run: |
-          echo "Running in CI mode - generating content only"
-          echo "To enable actual posting, set ENABLE_POST=true in repository secrets"
-          python run.py --force --dry-run
-          
-      - name: Attempt LinkedIn Posting (if enabled)
-        if: ${{ env.ENABLE_POST == 'true' }}
-        env:
           ENABLE_POST: ${{ secrets.ENABLE_POST || 'false' }}
         run: |
-          if [ "$ENABLE_POST" = "true" ]; then
-            echo "Attempting LinkedIn posting..."
-            python run.py --force || {
-              echo "LinkedIn posting failed - this is expected in CI environments"
-              echo "Content was generated and saved for manual review"
-              exit 0
-            }
+          RUN_ARGS="--force"
+          if [ "$ENABLE_POST" != "true" ]; then
+            echo "Running in dry-run mode because ENABLE_POST is not 'true'"
+            RUN_ARGS="$RUN_ARGS --dry-run"
           else
-            echo "LinkedIn posting disabled - content generated for review only"
+            echo "ENABLE_POST is 'true', attempting to post."
           fi
+          python run.py $RUN_ARGS
 
       - name: Upload artifacts on failure
         if: failure()
