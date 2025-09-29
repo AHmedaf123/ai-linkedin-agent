@@ -83,7 +83,7 @@ jobs:
           HEADLESS: "true"
           LOG_LEVEL_CONSOLE: "INFO"
           LOG_LEVEL_FILE: "DEBUG"
-          ENABLE_POST: ${{ secrets.ENABLE_POST || 'false' }}
+          ENABLE_POST: "true"
         run: |
           RUN_ARGS="--force"
           if [ "$ENABLE_POST" != "true" ]; then
