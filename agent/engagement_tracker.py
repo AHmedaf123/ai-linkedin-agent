@@ -318,19 +318,20 @@ class LinkedInEngagementTracker:
             }
 
 
-def fetch_linkedin_engagement(linkedin_email: str, linkedin_password: str, max_posts: int = 5) -> List[Dict]:
+def fetch_linkedin_engagement(linkedin_email: str, linkedin_password: str, max_posts: int = 5, linkedin_profile_url: str = None) -> List[Dict]:
     """Fetch LinkedIn engagement metrics
     
     Args:
         linkedin_email: LinkedIn email or username
         linkedin_password: LinkedIn password
         max_posts: Maximum number of posts to fetch metrics for
+        linkedin_profile_url: Optional LinkedIn profile URL
         
     Returns:
         List of engagement metrics for recent posts
     """
     try:
-        tracker = LinkedInEngagementTracker(linkedin_email, linkedin_password)
+        tracker = LinkedInEngagementTracker(linkedin_email, linkedin_password, linkedin_profile_url)
         return tracker.fetch_engagement_metrics(max_posts)
     except Exception as e:
         logger.error(f"Error fetching LinkedIn engagement: {str(e)}")

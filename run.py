@@ -163,6 +163,10 @@ class LinkedInAgent:
         linkedin_email = os.getenv("LINKEDIN_EMAIL") or os.getenv("LINKEDIN_USER")
         linkedin_password = os.getenv("LINKEDIN_PASSWORD") or os.getenv("LINKEDIN_PASS")
         
+        with open("agent/config.json", "r") as f:
+            config = json.load(f)
+        linkedin_profile_url = config.get("user", {}).get("linkedin_profile_url")
+
         if not (linkedin_email and linkedin_password):
             self.logger.info("LinkedIn credentials not provided, skipping engagement fetch",
                              extra={"event": "engagement_fetch_skip"})
@@ -173,7 +177,7 @@ class LinkedInAgent:
                          extra={"event": "engagement_fetch_start"})
         
         try:
-            engagement_data = fetch_linkedin_engagement(linkedin_email, linkedin_password)
+            engagement_data = fetch_linkedin_engagement(linkedin_email, linkedin_password, linkedin_profile_url=linkedin_profile_url)
         except Exception as fetch_error:
             self.logger.error(
                 f"Error fetching LinkedIn engagement: {fetch_error}",

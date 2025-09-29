@@ -1,0 +1,26 @@
+{
+  "email": {
+    "smtp_port": 587,
+    "smtp_server": "smtp.gmail.com"
+  },
+  "niches": [
+    "Drug Discovery AI",
+    "Structure-Based Drug Design (SBDD)",
+    "Bioinformatics",
+    "Artifcial Intelligence for Drug Discovery",
+    "AI Generated Drugs in clinial trails",
+    "Future of drug discovery with AI",
+    "Future of AI generater Drugs"
+  ],
+  "posting": {
+    "start_time": "11:00",
+    "time_increment": 30,
+    "timezone": "Asia/Karachi"
+  },
+  "user": {
+    "name": "Muhammad Ahmed",
+    "persona": "AI & Bioinformatics Researcher | Building Generative Models for Drug Discovery",
+    "voice": "Professional but approachable | Insight-driven | AI-focused",
+    "linkedin_profile_url": "https://www.linkedin.com/in/muhammad-ahmed-afzal/"
+  }
+}
