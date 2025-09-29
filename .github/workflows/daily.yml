@@ -82,7 +82,7 @@ jobs:
           LINKEDIN_LOGIN_NAV_TIMEOUT_MS: "120000"
           LINKEDIN_DEFAULT_TIMEOUT_MS: "60000"
           HEADLESS: "true"
-          ENABLE_POST: "false"  # Disable posting in CI by default
+          
           LOG_LEVEL_CONSOLE: "INFO"
           LOG_LEVEL_FILE: "DEBUG"
         run: |
