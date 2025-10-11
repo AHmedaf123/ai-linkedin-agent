@@ -145,7 +145,7 @@ def create_env_template():
 
 # OpenRouter API (Required)
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=x-ai/grok-4-fast:free
+OPENROUTER_MODEL=alibaba/tongyi-deepresearch-30b-a3b:free
 
 # GitHub API (Optional, for repo posts)
 GITHUB_USERNAME=your_github_username

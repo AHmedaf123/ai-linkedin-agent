@@ -21,10 +21,10 @@ def test_imports():
         from agent.seo_optimizer import optimize_post
         from agent.logging_setup import setup_logging
         from agent.metrics import get_metrics_tracker
-        print("✅ All imports successful")
+        print("All imports successful")
         return True
     except ImportError as e:
-        print(f"❌ Import failed: {e}")
+        print(f"Import failed: {e}")
         return False
 
 def test_content_generation():
@@ -37,27 +37,27 @@ def test_content_generation():
         post = get_niche_post(topic="Artificial Intelligence")
         
         if not post:
-            print("❌ Content generation returned None")
+            print("Content generation returned None")
             return False
         
         required_fields = ['title', 'body', 'seo_score', 'hashtags']
         for field in required_fields:
             if field not in post:
-                print(f"❌ Missing required field: {field}")
+                print(f"Missing required field: {field}")
                 return False
         
         if len(post['body']) < 50:
-            print("❌ Generated content too short")
+            print("Generated content too short")
             return False
         
-        print(f"✅ Content generated successfully ({len(post['body'])} chars)")
+        print(f"Content generated successfully ({len(post['body'])} chars)")
         print(f"   Title: {post['title'][:50]}...")
         print(f"   SEO Score: {post['seo_score']}")
         print(f"   Hashtags: {len(post['hashtags'])}")
         return True
         
     except Exception as e:
-        print(f"❌ Content generation failed: {e}")
+        print(f"Content generation failed: {e}")
         return False
 
 def test_config_loading():
@@ -68,19 +68,19 @@ def test_config_loading():
         
         config = load_config()
         if not isinstance(config, dict):
-            print("❌ Config loading failed")
+            print("Config loading failed")
             return False
         
         calendar = load_calendar()
         if not isinstance(calendar, dict):
-            print("❌ Calendar loading failed")
+            print("Calendar loading failed")
             return False
         
-        print("✅ Configuration loading successful")
+        print("Configuration loading successful")
         return True
         
     except Exception as e:
-        print(f"❌ Configuration loading failed: {e}")
+        print(f"Configuration loading failed: {e}")
         return False
 
 def test_metrics():
@@ -103,13 +103,13 @@ def test_metrics():
         duration = metrics.stop_timer("test_timer")
         
         if duration <= 0:
-            print("❌ Timer functionality failed")
+            print("Timer functionality failed")
             return False
         
         # Get stats
         stats = metrics.get_stats()
         if not isinstance(stats, dict):
-            print("❌ Stats retrieval failed")
+            print("Stats retrieval failed")
             return False
         
         # Save metrics
@@ -119,11 +119,11 @@ def test_metrics():
         if Path("test_metrics.json").exists():
             Path("test_metrics.json").unlink()
         
-        print("✅ Metrics functionality working")
+        print("Metrics functionality working")
         return True
         
     except Exception as e:
-        print(f"❌ Metrics test failed: {e}")
+        print(f"Metrics test failed: {e}")
         return False
 
 def test_seo_optimizer():
@@ -136,23 +136,23 @@ def test_seo_optimizer():
         score, keywords = optimize_post(test_content)
         
         if not isinstance(score, (int, float)) or score < 0:
-            print("❌ SEO score invalid")
+            print("SEO score invalid")
             return False
         
         if not isinstance(keywords, list):
-            print("❌ SEO keywords invalid")
+            print("SEO keywords invalid")
             return False
         
-        print(f"✅ SEO optimization working (score: {score}, keywords: {len(keywords)})")
+        print(f"SEO optimization working (score: {score}, keywords: {len(keywords)})")
         return True
         
     except Exception as e:
-        print(f"❌ SEO optimizer test failed: {e}")
+        print(f"SEO optimizer test failed: {e}")
         return False
 
 def main():
     """Run all tests"""
-    print("🧪 AI LinkedIn Agent Test Suite")
+    print("AI LinkedIn Agent Test Suite")
     print("=" * 40)
     
     tests = [
@@ -167,24 +167,24 @@ def main():
     total = len(tests)
     
     for name, test_func in tests:
-        print(f"\n📋 {name}")
+        print(f"\n{name}")
         print("-" * 30)
         try:
             if test_func():
                 passed += 1
             else:
-                print(f"❌ {name} failed")
+                print(f"{name} failed")
         except Exception as e:
-            print(f"❌ {name} error: {str(e)}")
+            print(f"{name} error: {str(e)}")
     
     print("\n" + "=" * 40)
-    print(f"📊 Test Results: {passed}/{total} passed")
+    print(f"Test Results: {passed}/{total} passed")
     
     if passed == total:
-        print("🎉 All tests passed! Agent is ready to use.")
+        print("All tests passed! Agent is ready to use.")
         return 0
     else:
-        print("⚠️  Some tests failed. Please check the issues above.")
+        print("Some tests failed. Please check the issues above.")
         return 1
 
 if __name__ == "__main__":

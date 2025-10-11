@@ -12,7 +12,7 @@ from .backlog_generator import fetch_repo_details
 logger = logging.getLogger("linkedin-agent")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "x-ai/grok-4-fast:free")
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "alibaba/tongyi-deepresearch-30b-a3b:free")
 
 PROMPT_CONSTRAINTS = (
     "Follow these constraints for the LinkedIn post:\n"
@@ -130,7 +130,10 @@ class LLMGenerator:
         try:
             raw_text = LLMGenerator._call_openrouter(messages)
         except Exception as e:
-            logger.error(f"OpenRouter API call failed: {e}")
+            logger.error(f"OpenRouter API call failed: {e}", exc_info=True)
+            return None
+        if not raw_text:
+            logger.error("No response received from OpenRouter API.")
             return None
         title, body, hashtags = LLMGenerator._postprocess_content(raw_text or "")
         optimized = optimize_post_full(body)
