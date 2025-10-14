@@ -21,39 +21,56 @@ jobs:
     env:
       AI_LINKED_INSECRETS: ${{ secrets.AI_LINKED_INSECRETS }}
       HEADLESS: true  # ✅ Force headless globally
-    steps:
-      - uses: actions/checkout@v4
 
+    steps:
+      # --- Always pull the latest main branch ---
+      - name: Checkout latest main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Ensure latest commit from origin/main
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+          echo "✅ Synced with latest commit:"
+          git log -1 --oneline
+
+      # --- Setup Python ---
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # --- Cache pip dependencies ---
       - name: Cache pip dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}-${{ github.run_id }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # --- Install dependencies ---
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Install Playwright browsers and dependencies to prevent runtime posting errors
+      # --- Cache Playwright browsers ---
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}-${{ github.run_id }}
           restore-keys: |
             ${{ runner.os }}-playwright-
 
       - name: Install Playwright browsers
         run: python -m playwright install --with-deps chromium
 
+      # --- Load packed secrets ---
       - name: Load packed secrets
         if: ${{ env.AI_LINKED_INSECRETS != '' }}
         run: |
@@ -73,6 +90,7 @@ jobs:
                   print(f"{k}={v}", file=f)
           PY
 
+      # --- Run AI Agent ---
       - name: Run AI Agent
         env:
           LINKEDIN_STORAGE_ONLY: "true"
@@ -94,6 +112,7 @@ jobs:
           fi
           python run.py $RUN_ARGS
 
+      # --- Upload artifacts on failure ---
       - name: Upload artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -108,6 +127,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 5
 
+      # --- Commit state changes (if any) ---
       - name: Commit state changes (if any)
         run: |
           if [ -f agent/state.json ]; then
