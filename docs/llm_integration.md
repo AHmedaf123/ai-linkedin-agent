@@ -8,7 +8,7 @@ This agent can generate professional, SEO-friendly LinkedIn posts using the Deep
    
    ```
    OPENROUTER_API_KEY=your_openrouter_key
-   OPENROUTER_MODEL=alibaba/tongyi-deepresearch-30b-a3b:free
+   OPENROUTER_MODEL=google/gemma-3n-e2b-it:free
    ```
 
 2. Install dependencies:

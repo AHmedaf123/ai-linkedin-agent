@@ -2,7 +2,7 @@ import os,re,json,requests
 from typing import List,Tuple,Dict,Any
 
 OPENROUTER_API_URL="https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL=os.getenv("OPENROUTER_MODEL","alibaba/tongyi-deepresearch-30b-a3b:free")
+DEFAULT_MODEL=os.getenv("OPENROUTER_MODEL","google/gemma-3n-e2b-it:free")
 
 SEO_SYS="You are an expert LinkedIn growth + SEO editor. Return strict JSON only."
 SEO_USER_PREFIX=(
@@ -43,6 +43,11 @@ def _call_openrouter(prompt:str,max_tokens:int=700,temperature:float=0.4)->Dict[
 
 def _strip_labels(text:str)->str:
     if not text:return ""
+    # Remove markdown formatting
+    text=re.sub(r'\*\*([^*]+)\*\*',r'\1',text)  # Remove bold
+    text=re.sub(r'\*([^*]+)\*',r'\1',text)  # Remove italic
+    text=re.sub(r'^#+\s+','',text,flags=re.MULTILINE)  # Remove headers
+    
     label_prefix=re.compile(r'^\s*(\*\*)?(\d+\)\s*)?(Hook|Context/Story|Context|Insights/Value|Insights|CTA)\s*(\*\*)?[:\-–—]\s*',re.I)
     label_only=re.compile(r'^\s*(\*\*)?(\d+\)\s*)?(Hook|Context/Story|Context|Insights/Value|Insights|CTA)\s*(\*\*)?[:\-–—]?\s*$',re.I)
     out=[];prev_blank=False

@@ -432,34 +432,22 @@ class LinkedInPoster:
             raise LinkedInPostError("Post editor not found.")
         editor.click()
         _random_wait(200, 500)
-        try:
-            # Clear existing content
-# --- FILE DESCRIPTION ---
-# linkedin_poster.py
-#
-# This module provides the LinkedInPoster class for automating LinkedIn post creation using Playwright.
-# It supports login via email/password or session reuse, navigates the LinkedIn UI, and posts content.
-# Exception handling is improved to avoid catching generic exceptions, and file path usage is sanitized.
-#
-# Usage:
-#   poster = LinkedInPoster(email, password)
-#   poster._setup()
-#   poster._login()
-#   poster._open_post_composer()
-#   poster._enter_post_content("Your post text")
-#   poster._teardown()
-            editor.fill("")
-        except Exception:
-            # If fill doesn't work, try selecting all and typing
-            try:
-                self.page.keyboard.press("Control+a")
-                _random_wait(100, 200)
-            except Exception:
-                pass
         
-        # Type the content
-        editor.type(text, delay=random.randint(20, 60))
-        _random_wait(400, 900)
+        # Use fill() instead of type() to avoid timeout issues
+        try:
+            editor.fill(text)
+            _random_wait(400, 900)
+        except PlaywrightTimeoutError:
+            # Fallback: try typing with shorter delay
+            logger.warning("fill() timed out, trying type() as fallback")
+            try:
+                editor.type(text, delay=10)
+                _random_wait(400, 900)
+            except PlaywrightTimeoutError:
+                # Last resort: use keyboard input
+                logger.warning("type() timed out, using keyboard input")
+                self.page.keyboard.type(text, delay=5)
+                _random_wait(400, 900)
 
 
     def _publish_post(self) -> None:

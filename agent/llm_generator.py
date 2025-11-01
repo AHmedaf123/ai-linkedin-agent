@@ -12,7 +12,7 @@ from .backlog_generator import fetch_repo_details
 logger = logging.getLogger("linkedin-agent")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "alibaba/tongyi-deepresearch-30b-a3b:free")
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-3n-e2b-it:free")
 
 PROMPT_CONSTRAINTS = (
     "Follow these constraints for the LinkedIn post:\n"
@@ -20,9 +20,10 @@ PROMPT_CONSTRAINTS = (
     "- Tone: Authoritative, conversational, and deeply insightful.\n"
     "- Voice: Use first-person perspective.\n"
     "- Structure: Hook → Context/insights → Unique perspective → CTA.\n"
-    "- Formatting: Short paragraphs (1–2 sentences) with line breaks; avoid heavy markdown.\n"
+    "- Formatting: Short paragraphs (1–2 sentences) with line breaks; NO markdown, NO bold (**), NO section headers, NO asterisks.\n"
+    "- Write in plain text only - LinkedIn will handle formatting.\n"
     "- Hashtags: 3–5 unique hashtags at the very end.\n"
-    "- Keywords: Naturally embed relevant domain keywords.\n"
+    "- Keywords: Naturally embed relevant domain keywords for SEO.\n"
 )
 
 class LLMGenerator:
@@ -40,6 +41,11 @@ class LLMGenerator:
 
     @staticmethod
     def _postprocess_content(text: str) -> Tuple[str, str, List[str]]:
+        # Remove markdown formatting
+        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)  # Remove bold
+        text = re.sub(r'\*([^*]+)\*', r'\1', text)  # Remove italic
+        text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)  # Remove headers
+        
         lines = [l.strip() for l in text.splitlines()]
         title = re.sub(r"^[#*\s]+", "", next((l for l in lines if l), "LinkedIn Update")).strip()
         tags = re.findall(r"(?i)#\w+", text)
