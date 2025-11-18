@@ -2,83 +2,86 @@
 # Defines the weekly content schedule for LinkedIn posts
 
 weekly_schedule:
-  # Monday: GenAI x Drug Discovery (how-to)
+  # Monday: AI for Drug Discovery
   0:
-    primary_topic: "GenAI for Drug Discovery"
+    primary_topic: "AI for Drug Discovery"
     subtopics:
       - "Protein Structure Prediction"
       - "Drug-Target Interaction"
       - "Molecular Generation"
-      - "Clinical Trial Optimization"
+      - "Docking"
+      - "Binding Affinity Prediction"
     post_type: "how-to"
     series_length: 5
 
-  # Tuesday: Case Study (mini)
+  # Tuesday: AI Case Studies in Pharma & Healthcare
   1:
-    primary_topic: "AI Case Studies"
+    primary_topic: "AI Case Studies in Pharma & Healthcare"
     subtopics:
-      - "Healthcare AI Implementation"
-      - "Financial Services AI"
-      - "Retail AI Solutions"
-      - "Manufacturing AI"
+      - "Molecular Generation"
+      - "QSAR"
+      - "ML-driven Simulations"
+      - "Clinical Trial Optimization with AI"
     post_type: "case-study"
     series_length: 4
 
-  # Wednesday: MLOps tip
+  # Wednesday: MLOps for Scientific Computing
   2:
-    primary_topic: "MLOps Tips"
+    primary_topic: "MLOps for Scientific Computing"
     subtopics:
       - "Model Versioning"
-      - "Continuous Integration for ML"
-      - "Monitoring ML Systems"
+      - "CI/ML"
+      - "Monitoring"
       - "Feature Stores"
-      - "Model Serving"
+      - "GPU Scaling"
+      - "Pipeline Optimization for Drug Discovery"
     post_type: "tip"
-    series_length: 5
+    series_length: 6
 
-  # Thursday: Explainability/Interpretability
+  # Thursday: Explainable AI for Molecules
   3:
-    primary_topic: "AI Explainability"
+    primary_topic: "Explainable AI for Molecules"
     subtopics:
-      - "SHAP Values"
-      - "LIME Explanations"
+      - "SHAP"
+      - "LIME"
       - "Feature Importance"
-      - "Counterfactual Explanations"
-      - "Model-Agnostic Methods"
+      - "Counterfactual Explanations for Molecular Models"
     post_type: "educational"
-    series_length: 5
+    series_length: 4
 
-  # Friday: Tooling/Stack
+  # Friday: AI Tooling for Scientific Models
   4:
-    primary_topic: "AI Tooling and Stacks"
+    primary_topic: "AI Tooling for Scientific Models"
     subtopics:
+      - "PyTorch Geometric"
+      - "RDKit"
+      - "DeepChem"
+      - "OpenMM"
+      - "BioNeMo"
       - "MLflow"
-      - "Kubeflow"
-      - "TensorFlow Extended"
-      - "PyTorch Lightning"
-      - "Weights & Biases"
+      - "W&B"
     post_type: "review"
-    series_length: 5
+    series_length: 7
 
-  # Saturday: Personal learning log
+  # Saturday: Personal AI Learning Journey
   5:
-    primary_topic: "Personal AI Learning"
+    primary_topic: "Personal AI Learning Journey"
     subtopics:
-      - "New Techniques I'm Exploring"
-      - "Challenges Overcome"
-      - "Interesting Papers"
-      - "Learning Resources"
+      - "New Techniques"
+      - "Molecular Modeling Challenges"
+      - "Papers"
+      - "Resources for AI in Drug Design"
     post_type: "reflection"
     series_length: 4
 
-  # Sunday: Weekly recap
+  # Sunday: Weekly AI-in-Drug-Discovery Recap
   6:
-    primary_topic: "Weekly AI Recap"
+    primary_topic: "Weekly AI-in-Drug-Discovery Recap"
     subtopics:
-      - "Top AI News"
       - "Research Highlights"
       - "Industry Trends"
       - "Open Source Updates"
+      - "Generative Model News"
     post_type: "summary"
     series_length: 4
 

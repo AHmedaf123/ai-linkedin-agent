@@ -2,11 +2,12 @@ import os,re,json,requests
 from typing import List,Tuple,Dict,Any
 
 OPENROUTER_API_URL="https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL=os.getenv("OPENROUTER_MODEL","google/gemma-3n-e2b-it:free")
+DEFAULT_MODEL=os.getenv("OPENROUTER_MODEL","alibaba/tongyi-deepresearch-30b-a3b:free")
+FALLBACK_MODELS=os.getenv("OPENROUTER_FALLBACK_MODELS","").split(",") if os.getenv("OPENROUTER_FALLBACK_MODELS") else []
 
 SEO_SYS="You are an expert LinkedIn growth + SEO editor. Return strict JSON only."
 SEO_USER_PREFIX=(
-"Optimize the LinkedIn post below. Goals: clarity, engagement, discoverability. Rules: 120–200 words and <1300 chars; short lines; no section labels; no 'Suggested visual' or 'Character count'; 3–6 hashtags at end (mix broad+niche); natural domain keywords; keep any valid @mentions and links. Return JSON keys: optimized_post, llm_seo_score (0-100), keywords (<=12), hashtags (3-6). Post:\n\n"
+"Optimize the LinkedIn post below. Goals: clarity, engagement, discoverability. Rules: 120–200 words and <1300 chars; write like a human speaking naturally; NO formatting symbols, NO dashes, NO asterisks, NO section labels, NO artificial structure; 3–6 hashtags at end only; natural domain keywords woven into conversation; keep valid @mentions and links. The optimized post must sound completely human and conversational. Return JSON keys: optimized_post, llm_seo_score (0-100), keywords (<=12), hashtags (3-6). Post:\n\n"
 )
 
 EMOJI_RE=re.compile(r"[\U0001F300-\U0001FAFF]")
@@ -28,28 +29,35 @@ def _load_api_key()->str:
 
 def _call_openrouter(prompt:str,max_tokens:int=700,temperature:float=0.4)->Dict[str,Any]:
     headers={"Authorization":f"Bearer {_load_api_key()}","Content-Type":"application/json"}
-    payload={"model":DEFAULT_MODEL,"messages":[{"role":"system","content":SEO_SYS},{"role":"user","content":SEO_USER_PREFIX+prompt}],"temperature":temperature,"top_p":0.9,"max_tokens":max_tokens,"include_reasoning":False,"response_format":{"type":"json_object"}}
-    err=None
-    for a in range(3):
-        try:
-            r=requests.post(OPENROUTER_API_URL,headers=headers,data=json.dumps(payload),timeout=120)
-            if r.status_code<400:
-                return r.json()
-            err=RuntimeError(f"OpenRouter {r.status_code}: {r.text[:200]}")
-        except Exception as e:
-            err=e
-        import time;time.sleep(1.5*(a+1))
-    raise err or RuntimeError("OpenRouter request failed")
+    models_to_try=[DEFAULT_MODEL]+[m.strip() for m in FALLBACK_MODELS if m.strip()]
+    
+    for model_name in models_to_try:
+        payload={"model":model_name,"messages":[{"role":"system","content":SEO_SYS},{"role":"user","content":SEO_USER_PREFIX+prompt}],"temperature":temperature,"top_p":0.9,"max_tokens":max_tokens,"include_reasoning":False,"response_format":{"type":"json_object"}}
+        
+        for a in range(2):
+            try:
+                r=requests.post(OPENROUTER_API_URL,headers=headers,data=json.dumps(payload),timeout=120)
+                if r.status_code<400:
+                    return r.json()
+                break
+            except Exception as e:
+                pass
+            import time;time.sleep(1.0)
+    
+    raise RuntimeError("All OpenRouter models failed")
 
 def _strip_labels(text:str)->str:
     if not text:return ""
-    # Remove markdown formatting
+    # Remove all formatting artifacts
     text=re.sub(r'\*\*([^*]+)\*\*',r'\1',text)  # Remove bold
     text=re.sub(r'\*([^*]+)\*',r'\1',text)  # Remove italic
     text=re.sub(r'^#+\s+','',text,flags=re.MULTILINE)  # Remove headers
+    text=re.sub(r'^\s*[-•–—]\s*','',text,flags=re.MULTILINE)  # Remove bullets and dashes
+    text=re.sub(r'^\s*\d+\.\s*','',text,flags=re.MULTILINE)  # Remove numbered lists
+    text=re.sub(r'[*_~`]','',text)  # Remove formatting symbols
     
-    label_prefix=re.compile(r'^\s*(\*\*)?(\d+\)\s*)?(Hook|Context/Story|Context|Insights/Value|Insights|CTA)\s*(\*\*)?[:\-–—]\s*',re.I)
-    label_only=re.compile(r'^\s*(\*\*)?(\d+\)\s*)?(Hook|Context/Story|Context|Insights/Value|Insights|CTA)\s*(\*\*)?[:\-–—]?\s*$',re.I)
+    label_prefix=re.compile(r'^\s*(\*\*)?(\d+\)\s*)?(Hook|Context/Story|Context|Insights/Value|Insights|CTA|Call to Action)\s*(\*\*)?[:\-–—]\s*',re.I)
+    label_only=re.compile(r'^\s*(\*\*)?(\d+\)\s*)?(Hook|Context/Story|Context|Insights/Value|Insights|CTA|Call to Action)\s*(\*\*)?[:\-–—]?\s*$',re.I)
     out=[];prev_blank=False
     for raw in text.splitlines():
         l=raw.strip()

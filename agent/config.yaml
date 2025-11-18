@@ -4,13 +4,14 @@
     "smtp_server": "smtp.gmail.com"
   },
   "niches": [
-    "Drug Discovery AI",
-    "Structure-Based Drug Design (SBDD)",
-    "Bioinformatics",
-    "Artifcial Intelligence for Drug Discovery",
-    "AI Generated Drugs in clinial trails",
-    "Future of drug discovery with AI",
-    "Future of AI generater Drugs"
+    "AI for Drug Discovery",
+    "Generative Models for Molecules",
+    "ML for Structural Biology",
+    "AI Engineering for Scientific Workflows",
+    "Autonomous Scientific Agents",
+    "Molecular ML Case Studies",
+    "Explainable ML for Molecules",
+    "Computational Chemistry + AI Commentary"
   ],
   "posting": {
     "start_time": "11:00",
