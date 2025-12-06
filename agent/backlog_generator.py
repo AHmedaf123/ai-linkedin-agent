@@ -1,145 +1,169 @@
-import requests, json, os, base64
-# Fix import path
+import requests
+import json
+import os
+import base64
+import logging
+
 from .seo_optimizer import optimize_post
 
-QUEUE = "agent/repo_queue.json"
-USED = "agent/used_repos.json"
+logger = logging.getLogger("linkedin-agent")
 
-def fetch_readme_content(repo, github_token=None):
-    """Fetch README content from GitHub repository"""
+QUEUE_PATH = "agent/repo_queue.json"
+USED_PATH = "agent/used_repos.json"
+
+
+def fetch_readme_content(repo: str, github_token: str = None) -> str:
+    """Fetch and parse README content from GitHub repository."""
     url = f"https://api.github.com/repos/AHmedaf123/{repo}/readme"
     headers = {}
     if github_token:
         headers["Authorization"] = f"token {github_token}"
     
     try:
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
-            readme_data = r.json()
-            # Decode base64 content
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            readme_data = resp.json()
             content = base64.b64decode(readme_data['content']).decode('utf-8')
-            # Extract first few sentences or paragraphs
+            
             lines = content.split('\n')
             description_lines = []
+            skip_patterns = ['#', '!', '[', '```', '---', '===']
+            
             for line in lines:
                 line = line.strip()
-                if line and not line.startswith('#') and not line.startswith('!') and not line.startswith('['):
+                
+                if not line or any(line.startswith(pat) for pat in skip_patterns):
+                    continue
+                
+                if len(line) > 20:
                     description_lines.append(line)
-                    if len(' '.join(description_lines)) > 150:  # Limit description length
-                        break
-            return ' '.join(description_lines)[:200] + "..." if len(' '.join(description_lines)) > 200 else ' '.join(description_lines)
-    except (requests.RequestException, json.JSONDecodeError, KeyError) as e:
-        print(f"Error fetching README for {repo}: {str(e)}")
+                
+                if len(' '.join(description_lines)) > 250:
+                    break
+            
+            summary = ' '.join(description_lines)
+            return summary[:300] + "..." if len(summary) > 300 else summary
+            
+    except Exception as e:
+        logger.error(f"Error fetching README for {repo}: {str(e)}")
     
-    return None
+    return ""
 
-def fetch_repo_details(repo):
+
+def fetch_repo_details(repo: str) -> dict:
+    """Fetch comprehensive repository details from GitHub API."""
     url = f"https://api.github.com/repos/AHmedaf123/{repo}"
-    github_token = os.getenv("GITHUB_TOKEN")
+    github_token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_API_TOKEN")
+    
     headers = {}
     if github_token:
         headers["Authorization"] = f"token {github_token}"
     
     try:
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code != 200:
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            logger.error(f"GitHub API returned {resp.status_code} for {repo}")
             return None
-        data = r.json()
-    except (requests.RequestException, json.JSONDecodeError) as e:
-        print(f"Error fetching repo details for {repo}: {str(e)}")
+        
+        data = resp.json()
+    except Exception as e:
+        logger.error(f"Error fetching repo details for {repo}: {str(e)}")
         return None
     
-    # Fetch README content
     readme_content = fetch_readme_content(repo, github_token)
     
     return {
         "name": data["name"],
-        "desc": data.get("description", "AI-based project."),
+        "desc": data.get("description") or "An AI-based project",
         "readme": readme_content,
         "url": data["html_url"],
         "language": data.get("language", "Python"),
-        "topics": data.get("topics", [])
+        "topics": data.get("topics", []),
+        "stars": data.get("stargazers_count", 0),
+        "forks": data.get("forks_count", 0)
     }
 
-# Delayed import to avoid circular dependency
-# from .llm_generator import generate_post as llm_generate_post
 
-def generate_repo_post(repo):
-    """Generate a repo-based LinkedIn post using LLM (DeepSeek R1 via OpenRouter).
-    Falls back to simple template if repo details cannot be fetched.
-    """
+def generate_repo_post(repo: str) -> dict:
+    """Generate a repository-based LinkedIn post using LLM."""
     data = fetch_repo_details(repo)
     if not data:
         return None
-
-    # Try LLM generation first (lazy import to avoid circular dependency)
+    
     try:
-        from .llm_generator import generate_post as llm_generate_post  # local import
+        from .llm_generator import generate_post as llm_generate_post
         post = llm_generate_post(repo=data)
         if post:
             return post
-    except Exception:
-        # Fallback below if LLM unavailable
-        pass
+    except Exception as e:
+        logger.error(f"LLM generation failed for {repo}: {str(e)}")
+    
+    readme_snippet = f"\n\n{data['readme']}" if data.get('readme') else ""
+    stars_info = f"⭐ {data['stars']} stars" if data.get('stars', 0) > 0 else ""
+    
+    fallback_body = f"""Just wrapped up work on {data['name']}, and I'm excited to share it with the community.
 
-    # Fallback: minimal template if LLM fails
-    readme_preview = f"\n\n📖 What it does: {data['readme']}" if data.get('readme') else ""
-    body = (
-        f"Showcasing: {data['name']}\n\n"
-        f"{data.get('desc','AI-based project.')}\n"
-        f"{readme_preview}\n\n"
-        f"🔗 {data['url']}"
-    )
-    seo_score, seo_keywords = optimize_post(body)
+{data.get('desc', 'An AI-based project focused on solving real-world challenges.')}{readme_snippet}
+
+Built with {data.get('language', 'Python')}, this project tackles some interesting problems in the {', '.join(data.get('topics', ['AI'])[:3])} space. {stars_info}
+
+Check it out and let me know your thoughts. Always open to feedback and collaboration.
+
+🔗 {data['url']}
+
+#AI #MachineLearning #OpenSource #GitHub"""
+    
+    seo_score, seo_keywords = optimize_post(fallback_body)
+    
     return {
-        "title": f"{data['name']} — Highlights",
-        "body": body.strip(),
+        "title": f"{data['name']} - Project Showcase",
+        "body": fallback_body.strip(),
         "seo_score": seo_score,
         "seo_keywords": seo_keywords,
         "hashtags": ["#AI", "#MachineLearning", "#OpenSource", "#GitHub"]
     }
 
-def get_next_repo_post(skip_current=False):
+
+def get_next_repo_post(skip_current: bool = False) -> dict:
+    """Get next repository post from queue."""
     try:
-        with open(QUEUE, "r") as f:
+        with open(QUEUE_PATH, "r") as f:
             repos = json.load(f)["pending_repos"]
-    except (FileNotFoundError, json.JSONDecodeError, PermissionError) as e:
-        print(f"Error loading repo queue: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error loading repo queue: {str(e)}")
         return None
-
+    
     if not repos:
-        return None  # fallback to niche topic
-
-    # If skip_current is True, try to get the second repo in the queue
+        return None
+    
     if skip_current and len(repos) > 1:
-        repo = repos.pop(1)  # Take the second repo
+        repo = repos.pop(1)
     else:
-        repo = repos.pop(0)  # Take the first repo
-        
+        repo = repos.pop(0)
+    
     try:
-        with open(QUEUE, "w") as f:
+        with open(QUEUE_PATH, "w") as f:
             json.dump({"pending_repos": repos}, f, indent=2)
-    except (PermissionError, OSError) as e:
-        print(f"Error saving repo queue: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error saving repo queue: {str(e)}")
         return None
-        return None
-
-    # Mark repo as used
+    
     try:
-        if os.path.exists(USED):
-            with open(USED, "r") as f:
+        if os.path.exists(USED_PATH):
+            with open(USED_PATH, "r") as f:
                 used = json.load(f)
         else:
             used = []
+        
         used.append(repo)
-        with open(USED, "w") as f:
+        
+        with open(USED_PATH, "w") as f:
             json.dump(used, f, indent=2)
-    except (FileNotFoundError, json.JSONDecodeError, PermissionError, OSError) as e:
-        print(f"Error updating used repos: {str(e)}")
-        # Continue anyway, this is not critical
-
+    except Exception as e:
+        logger.warning(f"Error updating used repos: {str(e)}")
+    
     try:
         return generate_repo_post(repo)
     except Exception as e:
-        print(f"Error generating post for repo {repo}: {str(e)}")
+        logger.error(f"Error generating post for {repo}: {str(e)}")
         return None

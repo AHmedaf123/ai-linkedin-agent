@@ -330,31 +330,25 @@ class LinkedInAgent:
 
         current_post = initial_post
         regeneration_count = 0
-        max_regeneration_attempts = int(os.getenv("MAX_REGENERATION_ATTEMPTS", "3"))
+        max_regeneration_attempts = int(os.getenv("MAX_REGENERATION_ATTEMPTS", "5"))
 
-        # Deduplication loop
         while True:
             result, is_original = check_and_save_post(current_post, self._regenerate_post_content)
             if is_original:
-                current_post = result # result is the validated, unique post
+                current_post = result
                 break
             
-            # If not original, it means _regenerate_post_content was called and returned a new post
-            # The result from check_and_save_post is the new post for the next iteration
             current_post = result 
             regeneration_count += 1
             if regeneration_count >= max_regeneration_attempts:
                 self.logger.warning("Could not generate a sufficiently unique post after multiple attempts",
                                     extra={"event": "post_uniqueness_failure", "regeneration_attempts": regeneration_count})
                 self.metrics.record_event("post_uniqueness_failure", {"regeneration_attempts": regeneration_count})
-                # If we still can't get a unique post, proceed with the last generated one, or raise error
-                # For now, we proceed to SEO check, but this could be a point to raise an error if strict uniqueness is required.
                 break 
 
-        # SEO validation loop
-        seo_threshold = int(os.getenv("MIN_SEO_SCORE", "70"))
+        seo_threshold = int(os.getenv("MIN_SEO_SCORE", "80"))
         low_seo_attempts = 0
-        max_low_seo_attempts = int(os.getenv("MAX_LOW_SEO_ATTEMPTS", "2")) # Separate attempts for SEO
+        max_low_seo_attempts = int(os.getenv("MAX_LOW_SEO_ATTEMPTS", "3"))
 
         while current_post['seo_score'] < seo_threshold and low_seo_attempts < max_low_seo_attempts:
             self.logger.info(
