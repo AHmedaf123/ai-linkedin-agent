@@ -243,12 +243,30 @@ class LinkedInAgent:
             engagement_stats = fallback_stats
         return engagement_stats
 
-    def _regenerate_post_content(self, current_source: str, regeneration_count: int, 
-                                 similarity_score: float = 0.0, low_seo_attempt: int = 0) -> dict:
+    def _regenerate_post_content(self, current_post: dict, similar_post: dict = None,
+                                 regeneration_count: int = 0, low_seo_attempt: int = 0) -> dict:
         """
         Regenerates post content based on a new content strategy.
         Used for deduplication or low SEO scores.
+        
+        Args:
+            current_post: The current post dict that needs regeneration
+            similar_post: The similar post found (for deduplication), optional
+            regeneration_count: Number of regeneration attempts so far
+            low_seo_attempt: Counter for low SEO regeneration attempts
         """
+        # Extract source from current post, default to 'niche'
+        current_source = current_post.get('source', 'niche')
+        
+        # Calculate similarity if we have a similar post
+        similarity_score = 0.0
+        if similar_post:
+            from agent.deduper import calculate_similarity
+            similarity_score, _ = calculate_similarity(
+                current_post.get('body', ''), 
+                [similar_post]
+            )
+        
         self.metrics.increment_counter("post_regenerations")
         event_data = {
             "event": "post_regeneration",
@@ -362,7 +380,9 @@ class LinkedInAgent:
             
             # Regenerate using a potentially different template/topic
             current_post = self._regenerate_post_content(
-                post_source, regeneration_count + 1, low_seo_attempt=low_seo_attempts + 1
+                current_post, similar_post=None, 
+                regeneration_count=regeneration_count + 1, 
+                low_seo_attempt=low_seo_attempts + 1
             )
             low_seo_attempts += 1
             save_artifact(current_post["body"], "post_preview.txt") # Save latest preview

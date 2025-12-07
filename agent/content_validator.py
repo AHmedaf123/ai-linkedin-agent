@@ -101,6 +101,40 @@ def validate_seo_score(seo_score: int, threshold: int = 80) -> Tuple[bool, List[
     return len(issues) == 0, issues
 
 
+def validate_content_value(text: str) -> Tuple[bool, List[str]]:
+    """Validate post provides educational value and specific insights."""
+    issues = []
+    
+    # Check for specific data points
+    import re
+    numbers = re.findall(r'\d+\.?\d*%|\d+x|\d+\.\d+|\d{2,}', text)
+    if len(numbers) < 2:
+        issues.append(f"Insufficient data points: {len(numbers)} (minimum 2 required for educational value)")
+    
+    # Check for overly generic/vague language
+    generic_indicators = [
+        "evolving rapidly", "rapidly evolving", "exciting", "innovative", 
+        "cutting-edge", "balance innovation", "start small"
+    ]
+    generic_count = sum(1 for phrase in generic_indicators if phrase.lower() in text.lower())
+    if generic_count > 1:
+        issues.append(f"Over-reliance on generic phrases: {generic_count} detected")
+    
+    # Ensure post provides insights, not just questions
+    question_count = text.count("?")
+    statement_count = text.count(".") + text.count("!")
+    if question_count > 0 and question_count >= statement_count:
+        issues.append("Post is mostly questions without providing concrete insights")
+    
+    # Check for technical specificity
+    technical_patterns = r'\b(model|algorithm|framework|library|dataset|architecture|training|API|version \d+)\b'
+    technical_terms = re.findall(technical_patterns, text, re.IGNORECASE)
+    if len(technical_terms) < 1:
+        issues.append("Lacks technical specificity - no frameworks, models, or specific tools mentioned")
+    
+    return len(issues) == 0, issues
+
+
 def validate_post(post: Dict, seo_threshold: int = 80) -> Tuple[bool, Dict[str, List[str]]]:
     """
     Comprehensive post validation.
@@ -133,6 +167,10 @@ def validate_post(post: Dict, seo_threshold: int = 80) -> Tuple[bool, Dict[str, 
     valid_seo, seo_issues = validate_seo_score(seo_score, seo_threshold)
     if not valid_seo:
         all_issues['seo'] = seo_issues
+    
+    valid_value, value_issues = validate_content_value(body)
+    if not valid_value:
+        all_issues['content_value'] = value_issues
     
     is_valid = len(all_issues) == 0
     
