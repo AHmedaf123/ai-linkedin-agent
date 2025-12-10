@@ -15,6 +15,7 @@ CONFIG_PATH = "agent/config.yaml"
 CALENDAR_PATH = "agent/calendar.yaml"
 METRICS_HISTORY_PATH = "agent/metrics_history.json"
 NICHE_INDEX_PATH = "agent/niche_index.json"
+TOPIC_HISTORY_PATH = "agent/topic_history.json"
 
 
 def load_niches_list() -> List[str]:
@@ -24,35 +25,86 @@ def load_niches_list() -> List[str]:
     return [n for n in niches if isinstance(n, str) and n.strip()]
 
 
+def load_topic_history() -> List[Dict]:
+    """Load history of used topics with timestamps."""
+    if os.path.exists(TOPIC_HISTORY_PATH):
+        try:
+            with open(TOPIC_HISTORY_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading topic history: {e}")
+    return []
+
+
+def save_topic_history(topic: str):
+    """Save used topic to history."""
+    history = load_topic_history()
+    history.append({
+        "topic": topic,
+        "timestamp": datetime.datetime.now().isoformat()
+    })
+    # Keep last 50 topics
+    if len(history) > 50:
+        history = history[-50:]
+        
+    try:
+        with open(TOPIC_HISTORY_PATH, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving topic history: {e}")
+
+
+def is_topic_cooldown(topic: str, days: int = 7) -> bool:
+    """Check if topic is on cooldown (used recently)."""
+    history = load_topic_history()
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+    
+    for entry in history:
+        entry_time = datetime.datetime.fromisoformat(entry["timestamp"])
+        if entry["topic"] == topic and entry_time > cutoff:
+            return True
+            
+    return False
+
+
 def get_next_niche_round_robin() -> str:
-    """Get next niche topic in round-robin order."""
+    """Get next niche topic in round-robin order, skipping cooldown topics."""
     niches = load_niches_list()
     if not niches:
         return "Artificial Intelligence"
     
-    idx = -1
+    start_idx = -1
     if os.path.exists(NICHE_INDEX_PATH):
         try:
             with open(NICHE_INDEX_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                idx = int(data.get("index", -1))
+                start_idx = int(data.get("index", -1))
         except Exception as e:
-            logger.warning(f"Failed to load niche index: {str(e)}")
-            idx = -1
+            logger.warning(f"Failed to load niche index: {e}")
+            start_idx = -1
     
-    idx = (idx + 1) % len(niches)
-    
-    try:
-        with open(NICHE_INDEX_PATH, "w", encoding="utf-8") as f:
-            json.dump({
-                "index": idx,
-                "topic": niches[idx],
-                "niches_count": len(niches),
-                "updated_at": datetime.datetime.now().isoformat()
-            }, f, indent=2)
-    except Exception as e:
-        logger.warning(f"Failed to save niche index: {str(e)}")
-    
+    # Try to find a valid topic (max loops = len(niches))
+    for i in range(1, len(niches) + 1):
+        idx = (start_idx + i) % len(niches)
+        topic = niches[idx]
+        
+        if not is_topic_cooldown(topic):
+            # Found a valid topic
+            try:
+                with open(NICHE_INDEX_PATH, "w", encoding="utf-8") as f:
+                    json.dump({
+                        "index": idx,
+                        "topic": topic,
+                        "niches_count": len(niches),
+                        "updated_at": datetime.datetime.now().isoformat()
+                    }, f, indent=2)
+            except Exception as e:
+                logger.warning(f"Failed to save niche index: {e}")
+            
+            return topic
+            
+    # If all on cooldown, just return the next one anyway to avoid breaking
+    idx = (start_idx + 1) % len(niches)
     return niches[idx]
 
 
@@ -116,7 +168,8 @@ def load_engagement_metrics() -> Dict:
 def fetch_trending_ai_topics() -> List[Dict]:
     """Fetch trending AI topics from ArXiv API."""
     try:
-        url = "http://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=5"
+        # Query for recent AI/ML papers
+        url = "http://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=10"
         response = requests.get(url, timeout=10)
         
         if response.status_code != 200:
@@ -126,16 +179,25 @@ def fetch_trending_ai_topics() -> List[Dict]:
         content = response.text
         topics = []
         
-        titles = re.findall(r"<title>(.*?)</title>", content)
+        # Simple regex parsing (robust enough for our needs)
+        entries = re.findall(r"<entry>.*?</entry>", content, re.DOTALL)
         
-        for title in titles[1:6]:
-            clean_title = title.replace("\n", " ").strip()
-            if clean_title and len(clean_title) > 20:
-                topics.append({
-                    "topic": clean_title,
-                    "source": "arxiv",
-                    "timestamp": datetime.datetime.now().isoformat()
-                })
+        for entry in entries[:5]:
+            title_match = re.search(r"<title>(.*?)</title>", entry, re.DOTALL)
+            summary_match = re.search(r"<summary>(.*?)</summary>", entry, re.DOTALL)
+            
+            if title_match and summary_match:
+                title = title_match.group(1).replace("\n", " ").strip()
+                summary = summary_match.group(1).replace("\n", " ").strip()
+                
+                # Check duplication against history
+                if not is_topic_cooldown(title, days=14):  # Stricter check for specific papers
+                    topics.append({
+                        "topic": f"New Research: {title}",
+                        "context": summary[:500],  # Pass summary for context
+                        "source": "arxiv",
+                        "timestamp": datetime.datetime.now().isoformat()
+                    })
         
         return topics
     except Exception as e:
@@ -191,9 +253,8 @@ def get_next_topic_strategy() -> Dict:
     try:
         repo_queue = load_repo_queue()
         config = load_config()
-        calendar = load_calendar()
-        engagement_metrics = load_engagement_metrics()
         
+        # 1. Repositories (Highest Priority)
         if repo_queue:
             logger.info("Content strategy: Using repository from queue")
             return {
@@ -202,7 +263,28 @@ def get_next_topic_strategy() -> Dict:
                 "template": None,
                 "priority_score": 10
             }
+            
+        # 2. Trending Topics (30% chance OR if no niches)
+        # We increase chance to get more "news" style content
+        use_trending = random.random() < 0.3
         
+        if use_trending:
+            try:
+                trending_topics = fetch_trending_ai_topics()
+                if trending_topics:
+                    selection = random.choice(trending_topics)
+                    logger.info(f"Content strategy: Using trending AI topic: {selection['topic']}")
+                    return {
+                        "source": "trending",
+                        "topic": selection["topic"],
+                        "context": selection.get("context", ""),
+                        "template": None,
+                        "priority_score": 9
+                    }
+            except Exception as e:
+                logger.error(f"Error checking trending topics: {e}")
+
+        # 3. Niche Topics (Standard Rotation)
         niches = config.get("niches", [])
         if niches:
             try:
@@ -212,46 +294,25 @@ def get_next_topic_strategy() -> Dict:
                     "source": "niche",
                     "topic": next_niche,
                     "template": None,
-                    "priority_score": 9
+                    "priority_score": 8
                 }
             except Exception as e:
                 logger.error(f"Error getting niche topic: {str(e)}")
         
-        try:
-            weekday = datetime.datetime.now().weekday()
-            weekly_schedule = calendar.get("weekly_schedule", {})
-            
-            if str(weekday) in weekly_schedule or weekday in weekly_schedule:
-                day_key = str(weekday) if str(weekday) in weekly_schedule else weekday
-                day_schedule = weekly_schedule[day_key]
-                primary_topic = day_schedule.get("primary_topic", "")
-                subtopics = day_schedule.get("subtopics", [])
-                
-                if primary_topic and subtopics:
-                    selected_topic = f"{primary_topic}: {random.choice(subtopics)}"
-                    logger.info(f"Content strategy: Using calendar topic for day {weekday}")
+        # 4. Fallback: Trending (if we skipped it earlier but have no niches)
+        if not use_trending:
+             try:
+                trending_topics = fetch_trending_ai_topics()
+                if trending_topics:
+                    selection = random.choice(trending_topics)
                     return {
-                        "source": "calendar",
-                        "topic": selected_topic,
-                        "template": None,
-                        "priority_score": 8
+                        "source": "trending",
+                        "topic": selection["topic"],
+                        "context": selection.get("context", ""),
+                        "priority_score": 7
                     }
-        except Exception as e:
-            logger.error(f"Error processing calendar topic: {str(e)}")
-        
-        try:
-            trending_topics = fetch_trending_ai_topics()
-            if trending_topics:
-                selected_topic = trending_topics[0]["topic"]
-                logger.info("Content strategy: Using trending AI topic from ArXiv")
-                return {
-                    "source": "trending",
-                    "topic": selected_topic,
-                    "template": None,
-                    "priority_score": 4
-                }
-        except Exception as e:
-            logger.error(f"Error fetching trending topics: {str(e)}")
+             except Exception:
+                 pass
         
     except Exception as e:
         logger.error(f"Critical error in content strategy: {str(e)}")
@@ -261,7 +322,7 @@ def get_next_topic_strategy() -> Dict:
         "source": "fallback",
         "topic": "Artificial Intelligence and Machine Learning",
         "template": None,
-        "priority_score": 2
+        "priority_score": 1
     }
 
 

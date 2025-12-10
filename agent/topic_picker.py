@@ -132,7 +132,7 @@ from .llm_generator import generate_post as llm_generate_post
 
 
 def get_niche_post(topic: Optional[str] = None, template: Optional[Dict[str, str]] = None, 
-                   force_template_rotation: bool = False) -> Dict[str, Any]:
+                   force_template_rotation: bool = False, context: str = "") -> Dict[str, Any]:
     """Generate a niche topic post via LLM with graceful fallback."""
     try:
         with open("agent/config.yaml", "r") as f:
@@ -165,7 +165,7 @@ def get_niche_post(topic: Optional[str] = None, template: Optional[Dict[str, str
         post_type = "general"
     
     try:
-        llm_post = llm_generate_post(niche=primary_topic)
+        llm_post = llm_generate_post(niche=primary_topic, context=context)
         if llm_post:
             return {
                 **llm_post,

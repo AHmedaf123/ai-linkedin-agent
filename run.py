@@ -18,7 +18,7 @@ from agent.github_signals import fetch_recent_github_activity
 from agent.deduper import check_and_save_post
 from agent.logging_setup import setup_logging, get_logger
 from agent.metrics import get_metrics_tracker
-from agent.content_strategy import get_next_content_strategy
+from agent.content_strategy import get_next_content_strategy, save_topic_history
 from agent.engagement_tracker import fetch_linkedin_engagement, get_engagement_stats
 from agent.self_healer import handle_error, process_retry_queue, check_system_health, retry_with_backoff
 
@@ -312,7 +312,8 @@ class LinkedInAgent:
                 post = get_niche_post(
                     topic=new_strategy.get("topic", None), 
                     template=new_strategy.get("template", None),
-                    force_template_rotation=True # Ensure a fresh template if possible
+                    force_template_rotation=True, # Ensure a fresh template if possible
+                    context=new_strategy.get("context", "")
                 )
             else:
                 # Fallback to niche topic with different template as last resort
@@ -340,7 +341,11 @@ class LinkedInAgent:
         if post_source == "repo":
             initial_post = get_next_repo_post()
         elif post_source in ["niche", "calendar", "trending", "fallback"]:
-            initial_post = get_niche_post(topic=content_strategy["topic"], template=content_strategy["template"])
+            initial_post = get_niche_post(
+                topic=content_strategy["topic"], 
+                template=content_strategy["template"],
+                context=content_strategy.get("context", "")
+            )
         else:
             self.logger.warning(f"Unknown content strategy source: {post_source}, falling back to niche topic")
             initial_post = get_niche_post()
@@ -544,6 +549,10 @@ class LinkedInAgent:
             # 7. Update next post schedule (non-critical, continue if fails)
             if self.posted: # Only update schedule if a post was effectively made/drafted
                 self._update_next_post_schedule()
+                topic_to_save = generated_post.get("primary_topic") or generated_post.get("topic")
+                if topic_to_save:
+                    save_topic_history(topic_to_save)
+                    self.logger.info(f"Saved topic to history: {topic_to_save}")
 
             set_github_output("posted", str(self.posted).lower())
             

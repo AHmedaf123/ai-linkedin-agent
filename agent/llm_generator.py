@@ -217,11 +217,16 @@ Remember: Frame this as "Look what AI can do" not "I built this". You're an obse
         ]
 
     @staticmethod
-    def _build_niche_prompt(niche_topic: str) -> List[Dict[str, str]]:
-        """Build enhanced prompt for niche topic posts."""
+    def _build_niche_prompt(niche_topic: str, context: str = "") -> List[Dict[str, str]]:
+        """Build enhanced prompt for niche topic posts, optionally using provided context."""
+        
+        context_instruction = ""
+        if context:
+            context_instruction = f"\n\nCONTEXT / SOURCE MATERIAL:\n{context}\n\nUse the above context as the primary source for facts, results, and metrics."
+
         user_prompt = f"""I want to write a LinkedIn post about {niche_topic} that showcases what's happening in this field and what AI is capable of.
 
-Topic: {niche_topic}
+Topic: {niche_topic}{context_instruction}
 
 Write a LinkedIn post that shares:
 1. A specific recent breakthrough or capability in {niche_topic}
@@ -278,8 +283,7 @@ Important: Frame this as "Look what AI can do" not "what I'm working on". You're
                 "messages": messages,
                 "temperature": temperature,
                 "top_p": 0.95,
-                "max_tokens": max_tokens,
-                "response_format": {"type": "text"}
+                "max_tokens": max_tokens
             }
             
             for attempt in range(2):
@@ -288,7 +292,7 @@ Important: Frame this as "Look what AI can do" not "what I'm working on". You're
                         OPENROUTER_API_URL,
                         headers=headers,
                         json=payload,
-                        timeout=120
+                        timeout=180
                     )
                     
                     if resp.status_code < 400:
@@ -340,13 +344,13 @@ Important: Frame this as "Look what AI can do" not "what I'm working on". You're
 
     @staticmethod
     def generate_post(repo: Optional[Union[str, Dict[str, Any]]] = None, 
-                     niche: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                     niche: Optional[str] = None, context: str = "") -> Optional[Dict[str, Any]]:
         """Generate a high-quality LinkedIn post via LLM."""
         if not repo and not niche:
             raise ValueError("Either 'repo' or 'niche' is required")
         
         if niche:
-            messages = LLMGenerator._build_niche_prompt(niche)
+            messages = LLMGenerator._build_niche_prompt(niche, context=context)
         else:
             repo_info = fetch_repo_details(repo) if isinstance(repo, str) else repo
             if not isinstance(repo_info, dict):
@@ -384,10 +388,10 @@ Important: Frame this as "Look what AI can do" not "what I'm working on". You're
 
 
 def generate_post(repo: Optional[Union[str, Dict[str, Any]]] = None, 
-                 niche: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                 niche: Optional[str] = None, context: str = "") -> Optional[Dict[str, Any]]:
     """Public API for generating LinkedIn posts."""
     try:
-        return LLMGenerator.generate_post(repo=repo, niche=niche)
+        return LLMGenerator.generate_post(repo=repo, niche=niche, context=context)
     except Exception as e:
         logger.error(f"Post generation error: {e}", exc_info=True)
         return None
