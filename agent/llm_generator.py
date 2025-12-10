@@ -14,6 +14,8 @@ logger = logging.getLogger("linkedin-agent")
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-3-12b-it:free")
 FALLBACK_MODELS = [
+    "meta-llama/llama-3-8b-instruct:free",
+    "microsoft/phi-3-mini-128k-instruct:free",
     "google/gemma-3n-e4b-it:free",
     "qwen/qwen3-235b-a22b:free"
 ]
@@ -210,10 +212,12 @@ Remember: Frame this as "Look what AI can do" not "I built this". You're an obse
         
         return [
             {
-                "role": "system",
-                "content": "You are an AI insights curator who shares fascinating developments in AI/ML, drug discovery, and computational biology. You help people understand what AI is capable of by highlighting real breakthroughs, papers, and projects. Write as an informed observer sharing exciting developments."
-            },
-            {"role": "user", "content": user_prompt}
+                "role": "user",
+                "content": f"""SYSTEM INSTRUCTION: You are an AI insights curator who shares fascinating developments in AI/ML, drug discovery, and computational biology. You help people understand what AI is capable of by highlighting real breakthroughs, papers, and projects. Write as an informed observer sharing exciting developments.
+
+USER REQUEST:
+{user_prompt}"""
+            }
         ]
 
     @staticmethod
@@ -253,10 +257,12 @@ Important: Frame this as "Look what AI can do" not "what I'm working on". You're
         
         return [
             {
-                "role": "system",
-                "content": "You are an AI insights curator focused on drug discovery and computational biology. You share breakthrough research, real-world AI applications, and help people understand what AI is achieving in these fields. Write as an informed observer highlighting exciting developments with specific examples and data."
-            },
-            {"role": "user", "content": user_prompt}
+                "role": "user",
+                "content": f"""SYSTEM INSTRUCTION: You are an AI insights curator focused on drug discovery and computational biology. You share breakthrough research, real-world AI applications, and help people understand what AI is achieving in these fields. Write as an informed observer highlighting exciting developments with specific examples and data.
+
+USER REQUEST:
+{user_prompt}"""
+            }
         ]
 
     @staticmethod
