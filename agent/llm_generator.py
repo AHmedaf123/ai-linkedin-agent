@@ -330,7 +330,7 @@ USER REQUEST:
             logger.warning(f"Post word count out of range: {words}")
             return False
         
-        formatting_artifacts = ['**', '__', '##', '- ', '* ', '1.', '2.']
+        formatting_artifacts = ['**', '__', '##']
         if any(artifact in body for artifact in formatting_artifacts):
             logger.warning("Post contains formatting artifacts")
             return False
