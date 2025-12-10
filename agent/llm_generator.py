@@ -12,7 +12,7 @@ from .backlog_generator import fetch_repo_details
 logger = logging.getLogger("linkedin-agent")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-coder:free")
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-3-12b-it:free")
 FALLBACK_MODELS = [
     "google/gemma-3n-e4b-it:free",
     "qwen/qwen3-235b-a22b:free"

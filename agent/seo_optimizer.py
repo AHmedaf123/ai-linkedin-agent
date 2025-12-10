@@ -6,7 +6,7 @@ from typing import List, Tuple, Dict, Any
 from collections import Counter
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-coder:free")
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-3-12b-it:free")
 
 SEO_SYSTEM_PROMPT = """You are an expert LinkedIn SEO and engagement optimizer. 
 Analyze posts for discoverability, engagement potential, and clarity.
