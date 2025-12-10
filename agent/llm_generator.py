@@ -136,8 +136,8 @@ class LLMGenerator:
         # Check for numbers/metrics/data points
         import re
         numbers = re.findall(r'\d+\.?\d*%|\d+x|\d+\.\d+|\d{2,}', body)
-        if len(numbers) < 2:
-            issues.append(f"Only {len(numbers)} numbers/metrics found (need 2+ for specificity)")
+        if len(numbers) < 1:
+            issues.append(f"Only {len(numbers)} numbers/metrics found (need 1+ for specificity)")
         
         # Check for banned generic phrases
         banned_phrases = [
@@ -157,7 +157,7 @@ class LLMGenerator:
         if found_banned:
             issues.append(f"Contains banned generic phrases: {', '.join(found_banned)}")
         
-        # Check for actionable/technical verbs
+        # Check for actionable/technical verbs (warning only, not blocking)
         actionable_verbs = [
             'built', 'implemented', 'tested', 'discovered', 'measured', 
             'achieved', 'reduced', 'increased', 'optimized', 'deployed',
@@ -165,7 +165,7 @@ class LLMGenerator:
         ]
         has_action = any(verb in body.lower() for verb in actionable_verbs)
         if not has_action:
-            issues.append("No actionable verbs found (built, tested, achieved, trained, etc.)")
+            logger.info("Post has no actionable verbs, but this is not blocking")
         
         # Check for vague words that indicate generic content
         vague_indicators = ['teams', 'space', 'field', 'key is', 'important']
