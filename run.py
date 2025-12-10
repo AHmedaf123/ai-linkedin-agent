@@ -321,9 +321,9 @@ class LinkedInAgent:
                 self.logger.warning(f"Unknown regeneration content strategy source: {new_source}, falling back to niche topic")
         except Exception as e:
             self.logger.error(f"Error generating post content: {str(e)}")
-            # Fallback to basic niche post
-            post = get_niche_post()
-        
+        if not post:
+            raise ValueError(f"Regeneration failed: Could not generate content for source {new_source}")
+            
         return post
 
     @timed_operation("content_generation")
@@ -350,6 +350,11 @@ class LinkedInAgent:
             self.logger.warning(f"Unknown content strategy source: {post_source}, falling back to niche topic")
             initial_post = get_niche_post()
             post_source = "niche" # Update source for accurate logging
+
+        if not initial_post:
+            self.logger.error(f"Generate post returned None for source {post_source}")
+            # This raising of error will be caught by the decorator and trigger retries or exit
+            raise ValueError("Failed to generate valid initial post")
 
         current_post = initial_post
         regeneration_count = 0

@@ -177,29 +177,6 @@ def get_niche_post(topic: Optional[str] = None, template: Optional[Dict[str, str
     except Exception as e:
         logger.error(f"LLM generation failed: {e}")
     
-    hashtags = generate_smart_hashtags(primary_topic)
-    hashtags_str = " ".join(hashtags)
-    
-    fallback_body = f"""I've been exploring {primary_topic} lately and wanted to share some thoughts.
-
-The field is evolving rapidly, with new applications emerging across industries. What's particularly exciting is how these advances are making once-theoretical concepts practical and accessible.
-
-For teams working in this space, the key is balancing innovation with pragmatic implementation. Start small, measure impact, and iterate based on real-world feedback.
-
-What's your experience with {primary_topic}? I'd love to hear what challenges or breakthroughs you've encountered.
-
-{hashtags_str}"""
-    
-    seo_score, seo_keywords = optimize_post(fallback_body)
-    
-    return {
-        "title": f"Insights on {primary_topic}",
-        "body": fallback_body.strip(),
-        "seo_score": seo_score,
-        "seo_keywords": seo_keywords,
-        "hashtags": hashtags,
-        "primary_topic": primary_topic,
-        "subtopic": subtopic,
-        "part": part,
-        "total": total
-    }
+    # Fallback removed to prevent generic content
+    logger.warning(f"Could not generate post for {primary_topic}, and fallback is disabled.")
+    return None
