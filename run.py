@@ -320,9 +320,12 @@ class LinkedInAgent:
                 post = get_niche_post(force_template_rotation=True)
                 self.logger.warning(f"Unknown regeneration content strategy source: {new_source}, falling back to niche topic")
         except Exception as e:
-            self.logger.error(f"Error generating post content: {str(e)}")
+            self.logger.error(f"Error generating post content during regeneration: {str(e)}")
+            post = None
+        
         if not post:
-            raise ValueError(f"Regeneration failed: Could not generate content for source {new_source}")
+            self.logger.warning(f"Regeneration failed: Could not generate content for source {new_source}")
+            return None
             
         return post
 
@@ -389,11 +392,21 @@ class LinkedInAgent:
             )
             
             # Regenerate using a potentially different template/topic
-            current_post = self._regenerate_post_content(
+            regenerated_post = self._regenerate_post_content(
                 current_post, similar_post=None, 
                 regeneration_count=regeneration_count + 1, 
                 low_seo_attempt=low_seo_attempts + 1
             )
+            
+            # If regeneration failed, keep the current post and stop trying
+            if regenerated_post is None:
+                self.logger.warning(
+                    f"Regeneration failed at attempt {low_seo_attempts + 1}, keeping current post",
+                    extra={"event": "regeneration_failed_keeping_current"}
+                )
+                break
+            
+            current_post = regenerated_post
             low_seo_attempts += 1
             save_artifact(current_post["body"], "post_preview.txt") # Save latest preview
 
