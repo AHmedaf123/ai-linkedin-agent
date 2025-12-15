@@ -72,7 +72,9 @@ def get_next_niche_round_robin() -> str:
     """Get next niche topic in round-robin order, skipping cooldown topics."""
     niches = load_niches_list()
     if not niches:
-        return "Artificial Intelligence"
+        fallback_topic = "Artificial Intelligence"
+        save_topic_history(fallback_topic)
+        return fallback_topic
     
     start_idx = -1
     if os.path.exists(NICHE_INDEX_PATH):
@@ -90,7 +92,7 @@ def get_next_niche_round_robin() -> str:
         topic = niches[idx]
         
         if not is_topic_cooldown(topic):
-            # Found a valid topic
+            # Found a valid topic - save to history immediately
             try:
                 with open(NICHE_INDEX_PATH, "w", encoding="utf-8") as f:
                     json.dump({
@@ -102,11 +104,15 @@ def get_next_niche_round_robin() -> str:
             except Exception as e:
                 logger.warning(f"Failed to save niche index: {e}")
             
+            # Save to topic history BEFORE returning to prevent re-selection
+            save_topic_history(topic)
             return topic
             
     # If all on cooldown, just return the next one anyway to avoid breaking
     idx = (start_idx + 1) % len(niches)
-    return niches[idx]
+    selected_topic = niches[idx]
+    save_topic_history(selected_topic)
+    return selected_topic
 
 
 def load_config() -> Dict:
@@ -191,10 +197,11 @@ def fetch_trending_ai_topics() -> List[Dict]:
                 title = title_match.group(1).replace("\n", " ").strip()
                 summary = summary_match.group(1).replace("\n", " ").strip()
                 
-                # Check duplication against history
+                # Check duplication against history using just the title (not the "New Research:" prefix)
+                # This ensures the cooldown check matches what we'll save to history
                 if not is_topic_cooldown(title, days=14):  # Stricter check for specific papers
                     topics.append({
-                        "topic": f"New Research: {title}",
+                        "topic": title,  # Use plain title for consistency
                         "context": summary[:500],  # Pass summary for context
                         "source": "arxiv",
                         "timestamp": datetime.datetime.now().isoformat()
@@ -274,10 +281,13 @@ def get_next_topic_strategy() -> Dict:
                 trending_topics = fetch_trending_ai_topics()
                 if trending_topics:
                     selection = random.choice(trending_topics)
-                    logger.info(f"Content strategy: Using trending AI topic: {selection['topic']}")
+                    topic = selection["topic"]
+                    # Save to history immediately when selected
+                    save_topic_history(topic)
+                    logger.info(f"Content strategy: Using trending AI topic: {topic}")
                     return {
                         "source": "trending",
-                        "topic": selection["topic"],
+                        "topic": topic,
                         "context": selection.get("context", ""),
                         "template": None,
                         "priority_score": 9
@@ -286,6 +296,7 @@ def get_next_topic_strategy() -> Dict:
                 logger.error(f"Error checking trending topics: {e}")
 
         # 3. Niche Topics (Standard Rotation)
+        # Note: get_next_niche_round_robin now saves to history internally
         niches = config.get("niches", [])
         if niches:
             try:
@@ -306,9 +317,12 @@ def get_next_topic_strategy() -> Dict:
                 trending_topics = fetch_trending_ai_topics()
                 if trending_topics:
                     selection = random.choice(trending_topics)
+                    topic = selection["topic"]
+                    # Save to history immediately when selected
+                    save_topic_history(topic)
                     return {
                         "source": "trending",
-                        "topic": selection["topic"],
+                        "topic": topic,
                         "context": selection.get("context", ""),
                         "priority_score": 7
                     }
@@ -319,9 +333,11 @@ def get_next_topic_strategy() -> Dict:
         logger.error(f"Critical error in content strategy: {str(e)}")
     
     logger.info("Content strategy: Using generic AI topic fallback")
+    fallback_topic = "Artificial Intelligence and Machine Learning"
+    save_topic_history(fallback_topic)
     return {
         "source": "fallback",
-        "topic": "Artificial Intelligence and Machine Learning",
+        "topic": fallback_topic,
         "template": None,
         "priority_score": 1
     }
