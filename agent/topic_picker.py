@@ -12,6 +12,8 @@ logger = logging.getLogger("linkedin-agent")
 
 _last_template_index = -1
 _current_series = {}
+# Track used niches during this process/run to avoid repeats
+_used_niches_session = set()
 
 
 def get_weekday_topic() -> Dict[str, Any]:
@@ -104,8 +106,8 @@ def generate_smart_hashtags(topic: str) -> List[str]:
     topic_tags = [f"#{word.replace(' ', '')}" for word in topic_words[:2]]
     
     niche_tags = [
-        "#DrugDiscovery", "#ComputationalBiology", "#Bioinformatics",
-        "#GenerativeAI", "#MLOps", "#AIResearch", "#DeepLearning"
+        "#GenerativeAI", "#MLOps", "#AIResearch", "#DeepLearning",
+        "#ComputerVision", "#NLP", "#ReinforcementLearning"
     ]
     
     broad_tags = [
@@ -158,7 +160,14 @@ def get_niche_post(topic: Optional[str] = None, template: Optional[Dict[str, str
         niches = cfg.get("niches", ["Artificial Intelligence"])
         if not niches:
             niches = ["Artificial Intelligence"]
-        primary_topic = random.choice(niches)
+        # pick a niche not used in this session if possible
+        available = [n for n in niches if n not in _used_niches_session]
+        if not available:
+            # reset when exhausted
+            _used_niches_session.clear()
+            available = list(niches)
+        primary_topic = random.choice(available)
+        _used_niches_session.add(primary_topic)
         subtopic = primary_topic
         part = 1
         total = 1

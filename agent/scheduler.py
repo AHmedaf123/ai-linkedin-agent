@@ -10,30 +10,18 @@ STRUCTURED_LOGS = "structured_logs.json"
 class Scheduler:
     @staticmethod
     def _load_state() -> Dict[str, Any]:
-        if os.path.exists(STATE_PATH):
-            with open(STATE_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
+        # In-memory only: do not persist scheduler state to disk
         return {"next_post_time": None}
 
     @staticmethod
     def _save_state(state: Dict[str, Any]) -> None:
-        os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
-        with open(STATE_PATH, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
+        # No-op: avoid writing state to disk
+        return
 
     @staticmethod
     def _append_log(event: str, data: Dict[str, Any] | None = None) -> None:
-        entry = {"timestamp": dt.datetime.now().isoformat(), "event": event, **(data or {})}
-        try:
-            logs = []
-            if os.path.exists(STRUCTURED_LOGS):
-                with open(STRUCTURED_LOGS, "r", encoding="utf-8") as f:
-                    logs = json.load(f) or []
-        except Exception:
-            logs = []
-        logs.append(entry)
-        with open(STRUCTURED_LOGS, "w", encoding="utf-8") as f:
-            json.dump(logs, f, indent=2)
+        # No-op structured logs to avoid writing files
+        return
 
     @staticmethod
     def should_post_now(force: bool = False) -> bool:

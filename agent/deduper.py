@@ -1,5 +1,3 @@
-import os
-import json
 import logging
 import hashlib
 from datetime import datetime
@@ -11,56 +9,29 @@ import numpy as np
 
 logger = logging.getLogger("linkedin-agent")
 
-USED_POSTS_PATH = "content_backlog/used_posts.jsonl"
+# In-memory recent posts only (no on-disk storage)
+_RECENT_POSTS: List[Dict[str, Any]] = []
 MAX_HISTORY_SIZE = 30
 SIMILARITY_THRESHOLD = 0.8
 MAX_REGENERATION_ATTEMPTS = 3
 
+
 class Deduper:
     @staticmethod
-    def _ensure_file() -> None:
-        os.makedirs(os.path.dirname(USED_POSTS_PATH), exist_ok=True)
-        if not os.path.exists(USED_POSTS_PATH):
-            with open(USED_POSTS_PATH, "w", encoding="utf-8") as f:
-                f.write("")
-
-    @staticmethod
     def load_recent_posts() -> List[Dict[str, Any]]:
-        Deduper._ensure_file()
-        posts: List[Dict[str, Any]] = []
-        try:
-            with open(USED_POSTS_PATH, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        posts.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        logger.warning("Invalid JSON in used posts file; skipping line")
-        except Exception as e:
-            logger.error(f"Error loading recent posts: {e}")
-            return []
-        return sorted(posts, key=lambda x: x.get("timestamp", ""), reverse=True)[:MAX_HISTORY_SIZE]
+        return list(_RECENT_POSTS[:MAX_HISTORY_SIZE])
 
     @staticmethod
     def save_post(post: Dict[str, Any]) -> None:
-        Deduper._ensure_file()
         record = {
             **post,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.utcnow().isoformat(),
             "hash": hashlib.md5(post.get("body", "").encode()).hexdigest(),
         }
-        try:
-            with open(USED_POSTS_PATH, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record) + "\n")
-            recent = Deduper.load_recent_posts()
-            if len(recent) > MAX_HISTORY_SIZE:
-                with open(USED_POSTS_PATH, "w", encoding="utf-8") as f:
-                    for p in recent[:MAX_HISTORY_SIZE]:
-                        f.write(json.dumps(p) + "\n")
-        except Exception as e:
-            logger.error(f"Error saving post to history: {e}")
+        # Prepend to keep recent first
+        _RECENT_POSTS.insert(0, record)
+        # Trim
+        del _RECENT_POSTS[MAX_HISTORY_SIZE:]
 
     @staticmethod
     def calculate_similarity(candidate_text: str, recent_posts: List[Dict[str, Any]]) -> Tuple[float, Optional[Dict[str, Any]]]:
@@ -118,8 +89,12 @@ class Deduper:
                 break
         if is_dup:
             logger.warning(f"Failed to generate a unique post after {attempts} attempts")
+            # Do not save duplicate post to persistent history; return failure
+            return current_post, False
+        # Fallback
         Deduper.save_post(current_post)
         return current_post, not is_dup
+
 
 # Public API facades for backward compatibility
 

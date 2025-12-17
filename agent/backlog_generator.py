@@ -84,7 +84,7 @@ def fetch_repo_details(repo: str) -> dict:
     }
 
 
-def generate_repo_post(repo: str) -> dict:
+def generate_repo_post(repo: str, context: str = "") -> dict:
     """Generate a repository-based LinkedIn post using LLM."""
     data = fetch_repo_details(repo)
     if not data:
@@ -92,7 +92,7 @@ def generate_repo_post(repo: str) -> dict:
     
     try:
         from .llm_generator import generate_post as llm_generate_post
-        post = llm_generate_post(repo=data)
+        post = llm_generate_post(repo=data, context=context)
         if post:
             return post
     except Exception as e:
@@ -124,7 +124,7 @@ Check it out and let me know your thoughts. Always open to feedback and collabor
     }
 
 
-def get_next_repo_post(skip_current: bool = False) -> dict:
+def get_next_repo_post(skip_current: bool = False, context: str = "") -> dict:
     """Get next repository post from queue."""
     try:
         with open(QUEUE_PATH, "r") as f:
@@ -148,22 +148,11 @@ def get_next_repo_post(skip_current: bool = False) -> dict:
         logger.error(f"Error saving repo queue: {str(e)}")
         return None
     
-    try:
-        if os.path.exists(USED_PATH):
-            with open(USED_PATH, "r") as f:
-                used = json.load(f)
-        else:
-            used = []
-        
-        used.append(repo)
-        
-        with open(USED_PATH, "w") as f:
-            json.dump(used, f, indent=2)
-    except Exception as e:
-        logger.warning(f"Error updating used repos: {str(e)}")
+    # NOTE: Do not persist used repos to disk to avoid storage-based duplication issues.
+    # We intentionally avoid writing to `agent/used_repos.json`.
     
     try:
-        return generate_repo_post(repo)
+        return generate_repo_post(repo, context=context)
     except Exception as e:
         logger.error(f"Error generating post for {repo}: {str(e)}")
         return None

@@ -8,6 +8,8 @@ import requests
 
 from .seo_optimizer import optimize_post_full
 from .backlog_generator import fetch_repo_details
+from .deduper import load_recent_posts
+import hashlib
 
 logger = logging.getLogger("linkedin-agent")
 
@@ -21,38 +23,33 @@ FALLBACK_MODELS = [
 ]
 
 ENHANCED_PROMPT_CONSTRAINTS = """
-Write a LinkedIn post that shares fascinating AI breakthroughs and capabilities - like you're an AI insights curator sharing what's happening in the field.
+Write a LinkedIn post that shares fascinating AI breakthroughs and capabilities.
 
 CRITICAL RULES:
 - Length: 150-220 words total, under 1,300 characters
-- Tone: Informative, insightful, educator sharing exciting developments
-- Voice: Third-person or field perspective (NOT "I built/I did")
-- NO formatting symbols (* - # > etc.) in the body
-- NO section labels (Hook, Context, CTA, etc.)
+- Tone: Authoritative yet approachable — you're a postgraduate-level AI researcher
+- Voice: First-person is allowed (you are a postgraduate researcher commenting as an informed practitioner)
+- NO formatting symbols (* - > etc.) in the body
+- NO section labels (Hook, Context, CTA, etc.) in the body
 - NO bullet points or numbered lists in the body
-- NO bold, italic, or any markdown formatting
+- NO bold, italic, or markdown formatting
 
 SPECIFIC CONTENT REQUIREMENTS (MUST INCLUDE):
-- AT LEAST 2 specific numbers, percentages, metrics, or version numbers
-- AT LEAST 1 concrete example: researcher name, company, institution, or paper
-- AT LEAST 1 real achievement or breakthrough with results
-- Focus on WHAT AI IS CAPABLE OF, not personal work
+- AT LEAST 1 specific number, percentage, metric, or version number
+- AT LEAST 1 concrete example: researcher name, company, institution, paper, or dataset
+- AT LEAST 1 real achievement or measurable result
+- Focus on AI capabilities and technical implications
 
 CONTENT FOCUS - Share insights about:
 - Recent breakthroughs: "In 2024, researchers at [institution] achieved..."
 - Capabilities: "AI is now capable of..."
 - Real impact: "This technology helped reduce/increase [metric] by [percentage]"
-- Trends: "The field is seeing [specific advancement]..."
-- Comparisons: "This is X% better than previous methods..."
+- Trends and comparisons to prior methods
 
 BANNED GENERIC PHRASES (do NOT use ANY of these):
 - "evolving rapidly" / "rapidly evolving"
-- "exciting advances" / "exciting developments"  
-- "balance innovation with pragmatic implementation"
+- "exciting advances" / "exciting developments"
 - "start small, measure impact, iterate"
-- "new applications emerging across industries"
-- "making theoretical concepts practical"
-- "making once-theoretical concepts practical and accessible"
 
 REQUIRED STRUCTURE:
 - Start with a specific fact or recent breakthrough
@@ -61,8 +58,12 @@ REQUIRED STRUCTURE:
 - End with a thought-provoking question about implications
 - Add 3-5 hashtags ONLY at the very end, separated by a blank line
 
-Think: You're sharing a fascinating AI development you discovered - with real details about who did it, what they achieved, and why it matters.
+VARIATION INSTRUCTIONS:
+- If provided a regeneration hint (in the CONTEXT argument), use it to change the angle (methodology, dataset, applications, limitations) and avoid repeating prior wording.
+
+Think: You are an Artificial Intelligence postgraduate from COMSATS University Islamabad sharing clear, technical insights about AI.
 """
+SEO_TARGET = int(os.getenv("SEO_TARGET", "80"))
 
 class LLMGenerator:
     @staticmethod
@@ -213,7 +214,7 @@ Remember: Frame this as "Look what AI can do" not "I built this". You're an obse
         return [
             {
                 "role": "user",
-                "content": f"""SYSTEM INSTRUCTION: You are an AI insights curator who shares fascinating developments in AI/ML, drug discovery, and computational biology. You help people understand what AI is capable of by highlighting real breakthroughs, papers, and projects. Write as an informed observer sharing exciting developments.
+                "content": f"""SYSTEM INSTRUCTION: You are an Artificial Intelligence postgraduate from COMSATS University Islamabad. Speak as an informed AI researcher focusing on practical AI capabilities, methods, datasets, and measurable results.
 
 USER REQUEST:
 {user_prompt}"""
@@ -258,7 +259,7 @@ Important: Frame this as "Look what AI can do" not "what I'm working on". You're
         return [
             {
                 "role": "user",
-                "content": f"""SYSTEM INSTRUCTION: You are an AI insights curator focused on drug discovery and computational biology. You share breakthrough research, real-world AI applications, and help people understand what AI is achieving in these fields. Write as an informed observer highlighting exciting developments with specific examples and data.
+                "content": f"""SYSTEM INSTRUCTION: You are an Artificial Intelligence postgraduate from COMSATS University Islamabad. Speak as an informed AI researcher focusing on AI techniques, datasets, benchmarks, and real-world impact. If a regeneration hint is present in the CONTEXT, use it to vary the angle and avoid repeating prior wording.
 
 USER REQUEST:
 {user_prompt}"""
@@ -363,10 +364,75 @@ USER REQUEST:
                 return None
             messages = LLMGenerator._build_repo_prompt(repo_info)
         
-        try:
-            raw_text = LLMGenerator._call_openrouter(messages)
-        except Exception as e:
-            logger.error(f"OpenRouter API call failed: {e}", exc_info=True)
+        # Try generation and retry on in-session duplicates up to 3 attempts
+        attempts = 0
+        max_attempts = 3
+        temp = 0.8
+        import re
+        m = re.search(r"TEMP\s*=\s*([0-9]\.?[0-9]*)", context)
+        if m:
+            try:
+                temp = float(m.group(1))
+            except Exception:
+                temp = 0.8
+
+        raw_text = None
+        last_error = None
+        while attempts < max_attempts:
+            attempts += 1
+            try:
+                # On retries, increase randomness slightly to encourage variation
+                use_temp = min(0.95, temp + 0.1 * (attempts - 1))
+                regen_hint = ""
+                if attempts > 1:
+                    regen_hint = "\n\nREGENERATE_HINT: Change the angle, use different examples/datasets/methods, avoid repeating prior wording."
+                    # Append hint to messages as a system message
+                    messages = messages + [{"role": "system", "content": regen_hint}]
+
+                raw_text = LLMGenerator._call_openrouter(messages, temperature=use_temp)
+            except Exception as e:
+                last_error = e
+                raw_text = None
+
+            if not raw_text:
+                continue
+
+            title, body, hashtags = LLMGenerator._postprocess_content(raw_text)
+
+            # Check in-session recent posts for duplicate content (by hash)
+            try:
+                recent = load_recent_posts()
+                h = hashlib.md5(body.encode()).hexdigest()
+                duplicate = any(p.get("hash") == h or hashlib.md5(p.get("body","").encode()).hexdigest() == h for p in recent)
+            except Exception:
+                duplicate = False
+
+            if duplicate:
+                # try again with a stronger regeneration hint
+                last_error = RuntimeError("Generated post duplicated an in-session post; retrying")
+                raw_text = None
+                continue
+
+            # Validate content quality; if invalid, try to regenerate with explicit metric requirement
+            valid = LLMGenerator._validate_post_quality(body)
+            if not valid:
+                if attempts < max_attempts:
+                    last_error = RuntimeError("Generated post failed quality validation; retrying with explicit metric requirement")
+                    # Add a stronger regeneration hint requesting numeric metrics and concrete examples
+                    regen_hint = "\n\nREGENERATE_HINT: Include at least one numeric metric or percentage (e.g., '25%', '2x', 'v1.2') and a concrete example (institution, paper, or dataset). Change phrasing and avoid prior wording."
+                    messages = messages + [{"role": "system", "content": regen_hint}]
+                    raw_text = None
+                    continue
+                else:
+                    logger.warning("Generated post failed validation after retries; accepting last result to avoid blocking workflow")
+                    # accept last generated text even if validation failed
+                    break
+
+            # otherwise break to continue processing
+            break
+
+        if raw_text is None:
+            logger.error(f"OpenRouter API failed or produced duplicates after {attempts} attempts: {last_error}")
             return None
         
         if not raw_text:
@@ -379,16 +445,43 @@ USER REQUEST:
             logger.warning("Generated post failed quality validation")
             return None
         
+        # Initial SEO optimization
         optimized = optimize_post_full(body)
-        
+
         final_body = optimized.get("optimized_post", body).strip()
         final_hashtags = optimized.get("hashtags", hashtags)
-        
+        best_score = int(optimized.get("seo_score", 0))
+        best_result = optimized
+
+        # If below target, retry optimization with stronger instruction up to 2 times
+        if best_score < SEO_TARGET:
+            for retry in range(2):
+                try:
+                    hint = (
+                        "\n\nIMPROVE_SEO: TargetScore={} -- "
+                        "Increase keyword usage, add/adjust 3-6 highly-relevant hashtags, "
+                        "preserve voice and length, avoid new factual claims."
+                    ).format(SEO_TARGET)
+                    retry_input = final_body + "\n\n" + hint
+                    new_opt = optimize_post_full(retry_input)
+                    new_score = int(new_opt.get("seo_score", 0))
+                    if new_score > best_score:
+                        best_score = new_score
+                        best_result = new_opt
+                        final_body = best_result.get("optimized_post", final_body).strip()
+                        final_hashtags = best_result.get("hashtags", final_hashtags)
+                    # Stop early if target reached
+                    if best_score >= SEO_TARGET:
+                        break
+                except Exception:
+                    # Non-fatal: continue to next retry
+                    continue
+
         return {
             "title": title or "Professional Update",
             "body": final_body,
-            "seo_score": optimized.get("seo_score", 0),
-            "seo_keywords": optimized.get("keywords", []),
+            "seo_score": best_score,
+            "seo_keywords": best_result.get("keywords", []),
             "hashtags": final_hashtags[:6]
         }
 

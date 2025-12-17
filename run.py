@@ -307,13 +307,16 @@ class LinkedInAgent:
         # Generate post based on the new strategy
         try:
             if new_source == "repo":
-                post = get_next_repo_post(skip_current=True)
+                # Add regeneration hint to force a different angle and higher creativity
+                regen_hint = f"REGENERATE_HINT: Vary the angle, focus on methodology, dataset, or applications; avoid repeating previous phrasing. ATTEMPT={regeneration_count}"
+                post = get_next_repo_post(skip_current=True, context=new_strategy.get("context", "") + "\n\n" + regen_hint)
             elif new_source in ["niche", "calendar", "trending", "fallback"]:
+                regen_hint = f"REGENERATE_HINT: Vary the angle, focus on methodology, dataset, or applications; avoid repeating previous phrasing. ATTEMPT={regeneration_count}"
                 post = get_niche_post(
                     topic=new_strategy.get("topic", None), 
                     template=new_strategy.get("template", None),
                     force_template_rotation=True, # Ensure a fresh template if possible
-                    context=new_strategy.get("context", "")
+                    context=(new_strategy.get("context", "") or "") + "\n\n" + regen_hint
                 )
             else:
                 # Fallback to niche topic with different template as last resort
@@ -441,20 +444,10 @@ class LinkedInAgent:
         """Saves the generated post to the content backlog."""
         backlog_path = "content_backlog/backlog.json"
         try:
-            if os.path.exists(backlog_path):
-                with open(backlog_path, "r", encoding="utf-8") as f:
-                    backlog = json.load(f)
-            else:
-                backlog = []
-                
-            post["timestamp"] = datetime.now().isoformat()
-            backlog.append(post)
-            
-            with open(backlog_path, "w", encoding="utf-8") as f:
-                json.dump(backlog, f, indent=2)
-            self.logger.info(f"Post saved to backlog: {post.get('title', 'Untitled')}",
-                             extra={"event": "backlog_save"})
-            self.metrics.record_event("backlog_save")
+            # Intentionally not persisting backlog to disk to avoid storage-based duplication
+            self.logger.info(f"Backlog persistence disabled; post prepared: {post.get('title', 'Untitled')}",
+                             extra={"event": "backlog_save_disabled"})
+            self.metrics.record_event("backlog_save_disabled")
         except Exception as e:
             self.logger.error(f"Error saving to backlog: {str(e)}", 
                               extra={"post_title": post.get("title", "N/A")})
@@ -480,24 +473,12 @@ class LinkedInAgent:
 
     def _update_post_history(self, post: dict) -> None:
         """Appends the posted content to the post history file."""
-        history_path = "post_history.json"
+        # Post history persistence disabled to avoid storage
         try:
-            if os.path.exists(history_path):
-                with open(history_path, "r", encoding="utf-8") as hf:
-                    history = json.load(hf)
-            else:
-                history = []
-            history.append({
-                "timestamp": datetime.now().isoformat(),
-                "title": post.get("title"),
-                "length": len(post.get("body", "")),
-            })
-            with open(history_path, "w", encoding="utf-8") as hf:
-                json.dump(history, hf, indent=2)
-            self.logger.debug("Post history updated.", extra={"event": "post_history_update"})
-        except Exception as e:
-            self.logger.warning(f"Failed to append post history: {str(e)}", exc_info=True)
-            self.metrics.record_event("post_history_update_error")
+            self.logger.debug("Post history persistence disabled; recording in metrics only.", extra={"event": "post_history_disabled"})
+            self.metrics.record_event("post_history_disabled", {"title": post.get("title"), "length": len(post.get("body", ""))})
+        except Exception:
+            self.logger.debug("Failed to record post history metric", exc_info=True)
 
     @timed_operation("email_report")
     @handled_operation("Email reporting", send_report=True, retry=True)
