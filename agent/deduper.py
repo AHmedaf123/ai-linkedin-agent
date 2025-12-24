@@ -7,10 +7,13 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
+from .storage import get_recent_posts, save_used_post, init_db
+
 logger = logging.getLogger("linkedin-agent")
 
-# In-memory recent posts only (no on-disk storage)
-_RECENT_POSTS: List[Dict[str, Any]] = []
+# Ensure database is initialized
+init_db()
+
 MAX_HISTORY_SIZE = 30
 SIMILARITY_THRESHOLD = 0.8
 MAX_REGENERATION_ATTEMPTS = 3
@@ -19,7 +22,7 @@ MAX_REGENERATION_ATTEMPTS = 3
 class Deduper:
     @staticmethod
     def load_recent_posts() -> List[Dict[str, Any]]:
-        return list(_RECENT_POSTS[:MAX_HISTORY_SIZE])
+        return get_recent_posts(limit=MAX_HISTORY_SIZE)
 
     @staticmethod
     def save_post(post: Dict[str, Any]) -> None:
@@ -28,10 +31,7 @@ class Deduper:
             "timestamp": datetime.utcnow().isoformat(),
             "hash": hashlib.md5(post.get("body", "").encode()).hexdigest(),
         }
-        # Prepend to keep recent first
-        _RECENT_POSTS.insert(0, record)
-        # Trim
-        del _RECENT_POSTS[MAX_HISTORY_SIZE:]
+        save_used_post(record)
 
     @staticmethod
     def calculate_similarity(candidate_text: str, recent_posts: List[Dict[str, Any]]) -> Tuple[float, Optional[Dict[str, Any]]]:
