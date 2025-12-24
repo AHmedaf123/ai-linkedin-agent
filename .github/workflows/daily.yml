@@ -127,6 +127,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 5
 
+      # --- Commit database changes ---
+      - name: Commit database changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add agent/agent_storage.db
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update post history database [skip ci]"
+            git push
+          else
+            echo "No database changes to commit."
+          fi
+
       # --- Commit state changes (if any) ---
       - name: Commit state changes (if any)
         run: |
