@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime
 
 # Add parent directory to path to import agent modules
+# This is necessary for pytest to find the agent package
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
@@ -16,25 +17,33 @@ class TestDeduper(unittest.TestCase):
         """Set up a temporary database for testing."""
         self.temp_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.temp_dir, "test_agent_storage.db")
+        
+        # Set environment before importing to ensure proper database path
+        self.original_db_path = os.environ.get("AGENT_DB_PATH")
         os.environ["AGENT_DB_PATH"] = self.db_path
         
-        # Import after setting the environment variable
-        from agent import deduper
+        # Import and reload to pick up new DB_PATH
         from agent import storage
-        
-        # Reload modules to pick up new DB_PATH
         import importlib
         importlib.reload(storage)
+        
+        # Now import deduper after storage is configured
+        from agent import deduper
         importlib.reload(deduper)
         
         self.deduper = deduper
 
     def tearDown(self):
         """Clean up the temporary database."""
+        # Restore original environment
+        if self.original_db_path is not None:
+            os.environ["AGENT_DB_PATH"] = self.original_db_path
+        elif "AGENT_DB_PATH" in os.environ:
+            del os.environ["AGENT_DB_PATH"]
+        
+        # Clean up temp directory
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
-        if "AGENT_DB_PATH" in os.environ:
-            del os.environ["AGENT_DB_PATH"]
 
     def test_save_and_load_posts(self):
         """Test that posts are saved and loaded from persistent storage."""

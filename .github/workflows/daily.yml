@@ -128,6 +128,9 @@ jobs:
           retention-days: 5
 
       # --- Commit database changes ---
+      # The database file contains post history for deduplication.
+      # It must be committed to persist across workflow runs to prevent
+      # duplicate posts. The [skip ci] tag prevents re-triggering the workflow.
       - name: Commit database changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
