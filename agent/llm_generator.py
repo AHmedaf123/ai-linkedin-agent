@@ -109,11 +109,19 @@ class LLMGenerator:
 
     @staticmethod
     def _generate_fallback_hashtags(text: str, topic: str = "") -> List[str]:
-        """Generate fallback hashtags based on content and topic if LLM doesn't provide them."""
+        """Generate fallback hashtags based on content and topic if LLM doesn't provide them.
+        
+        Args:
+            text: The post body text to analyze for relevant hashtags
+            topic: Optional topic or title to help identify relevant hashtags
+            
+        Returns:
+            List of 3-5 relevant hashtags with # prefix
+        """
         hashtags = []
         
-        # Base AI/ML hashtags
-        base_tags = ["#ArtificialIntelligence", "#MachineLearning", "#AI"]
+        # Base AI/ML hashtags - ensure at least 3 items
+        base_tags = ["#ArtificialIntelligence", "#MachineLearning", "#AI", "#DataScience", "#TechInnovation"]
         
         # Topic-specific hashtags
         text_lower = text.lower() + " " + topic.lower()
@@ -148,16 +156,21 @@ class LLMGenerator:
                 if len(hashtags) >= 5:
                     break
         
-        # Fill with base tags if needed
+        # Fill with base tags if needed (use set to avoid duplicates)
+        hashtags_set = set(hashtags)
         for tag in base_tags:
-            if tag not in hashtags:
+            if tag not in hashtags_set:
                 hashtags.append(tag)
+                hashtags_set.add(tag)
                 if len(hashtags) >= 5:
                     break
         
         # Ensure we have at least 3 hashtags
-        while len(hashtags) < 3:
-            hashtags.append(base_tags[len(hashtags) % len(base_tags)])
+        if len(hashtags) < 3:
+            for i in range(3 - len(hashtags)):
+                if i < len(base_tags) and base_tags[i] not in hashtags_set:
+                    hashtags.append(base_tags[i])
+                    hashtags_set.add(base_tags[i])
         
         return hashtags[:5]
 

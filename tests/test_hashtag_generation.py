@@ -6,10 +6,44 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from agent.llm_generator import LLMGenerator
+from agent import ensure_hashtags_in_content
 
 
 class TestHashtagGeneration(unittest.TestCase):
     """Test the hashtag generation and fallback functionality."""
+
+    def test_ensure_hashtags_in_content_appends_when_missing(self):
+        """Test that ensure_hashtags_in_content appends hashtags when not present."""
+        content = "This is a post about AI."
+        hashtags = ["#AI", "#MachineLearning"]
+        
+        result = ensure_hashtags_in_content(content, hashtags)
+        
+        self.assertIn("#AI", result)
+        self.assertIn("#MachineLearning", result)
+        self.assertTrue(result.startswith("This is a post about AI."))
+
+    def test_ensure_hashtags_in_content_does_not_duplicate(self):
+        """Test that hashtags are not duplicated if already present."""
+        content = "This is a post about AI.\n\n#AI #MachineLearning"
+        hashtags = ["#AI", "#MachineLearning"]
+        
+        result = ensure_hashtags_in_content(content, hashtags)
+        
+        # Should not append again
+        self.assertEqual(result, content)
+        # Count occurrences - should only appear once
+        self.assertEqual(result.count("#AI"), 1)
+        self.assertEqual(result.count("#MachineLearning"), 1)
+
+    def test_ensure_hashtags_in_content_with_empty_list(self):
+        """Test that content is unchanged when hashtags list is empty."""
+        content = "This is a post."
+        hashtags = []
+        
+        result = ensure_hashtags_in_content(content, hashtags)
+        
+        self.assertEqual(result, content)
 
     def test_generate_fallback_hashtags_with_ai_content(self):
         """Test fallback hashtag generation for AI content."""

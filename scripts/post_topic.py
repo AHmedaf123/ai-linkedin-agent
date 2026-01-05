@@ -18,6 +18,8 @@ def build_full_text(post: dict) -> str:
     """Return the final text to post on LinkedIn.
     Ensures hashtags are always appended to the body.
     """
+    from agent import ensure_hashtags_in_content
+    
     body = (post.get("body") or "").strip()
     hashtags = post.get("hashtags", [])
     
@@ -28,15 +30,8 @@ def build_full_text(post: dict) -> str:
         body = f"{title}\n\n{tag_str}".strip()
         return body
     
-    # Check if hashtags are already in the body
-    has_hashtags = any(tag in body for tag in hashtags) if hashtags else False
-    
-    # If hashtags exist and aren't in the body, append them
-    if hashtags and not has_hashtags:
-        tag_str = " ".join(hashtags)
-        body = f"{body}\n\n{tag_str}"
-    
-    return body
+    # Use shared utility to ensure hashtags are appended
+    return ensure_hashtags_in_content(body, hashtags)
 
 
 def save_preview(post: dict, full_text: str, path_txt: str = "post_preview.txt") -> None:
