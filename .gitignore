@@ -84,3 +84,5 @@ content_backlog/used_posts.jsonl
 
 # Ensure requirements.txt is not ignored
 !requirements.txt
+agent/agent_storage.db
+tmp*.json
