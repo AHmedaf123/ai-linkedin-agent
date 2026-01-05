@@ -44,9 +44,9 @@ def save_topic_history(topic: str):
         "topic": topic,
         "timestamp": datetime.datetime.now().isoformat()
     })
-    # Keep last 50 topics
-    if len(history) > 50:
-        history = history[-50:]
+    # Keep last 100 topics (increased from 50 for better tracking)
+    if len(history) > 100:
+        history = history[-100:]
         
     try:
         with open(TOPIC_HISTORY_PATH, "w", encoding="utf-8") as f:
@@ -55,8 +55,11 @@ def save_topic_history(topic: str):
         logger.error(f"Error saving topic history: {e}")
 
 
-def is_topic_cooldown(topic: str, days: int = 7) -> bool:
-    """Check if topic is on cooldown (used recently)."""
+def is_topic_cooldown(topic: str, days: int = 14) -> bool:
+    """Check if topic is on cooldown (used recently).
+    
+    Default cooldown increased to 14 days to prevent repeating posts too soon.
+    """
     history = load_topic_history()
     cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
     

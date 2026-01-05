@@ -458,6 +458,18 @@ class LinkedInAgent:
     @handled_operation("LinkedIn posting", send_report=True, retry=True)
     def _publish_to_linkedin(self, post_content: str, post_data: dict) -> None:
         """Publishes the post to LinkedIn or simulates in dry-run mode."""
+        # Append hashtags to post content if they exist and aren't already in the body
+        hashtags = post_data.get("hashtags", [])
+        if hashtags:
+            # Check if hashtags are already in the body
+            has_hashtags = any(tag in post_content for tag in hashtags)
+            if not has_hashtags:
+                # Append hashtags to the end with a blank line
+                hashtag_line = " ".join(hashtags)
+                post_content = f"{post_content}\n\n{hashtag_line}"
+                self.logger.info(f"Appended {len(hashtags)} hashtags to post", 
+                                extra={"event": "hashtags_appended", "count": len(hashtags)})
+        
         if self.enable_post:
             post_to_linkedin(post_content)
             self.logger.info("Successfully posted to LinkedIn",

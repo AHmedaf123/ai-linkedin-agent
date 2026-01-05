@@ -16,15 +16,26 @@ from agent.linkedin_poster import post_to_linkedin
 
 def build_full_text(post: dict) -> str:
     """Return the final text to post on LinkedIn.
-    We use the LLM body as-is to avoid duplicating hashtags.
+    Ensures hashtags are always appended to the body.
     """
     body = (post.get("body") or "").strip()
+    hashtags = post.get("hashtags", [])
+    
     if not body:
         # Fallback: compose minimal content from title and hashtags
         title = post.get("title", "LinkedIn Update")
-        tags = post.get("hashtags", [])
-        tag_str = (" ".join(tags)).strip()
+        tag_str = (" ".join(hashtags)).strip()
         body = f"{title}\n\n{tag_str}".strip()
+        return body
+    
+    # Check if hashtags are already in the body
+    has_hashtags = any(tag in body for tag in hashtags) if hashtags else False
+    
+    # If hashtags exist and aren't in the body, append them
+    if hashtags and not has_hashtags:
+        tag_str = " ".join(hashtags)
+        body = f"{body}\n\n{tag_str}"
+    
     return body
 
 

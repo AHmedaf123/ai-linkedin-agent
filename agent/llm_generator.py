@@ -56,7 +56,13 @@ REQUIRED STRUCTURE:
 - Share concrete details: who, what, when, results, metrics
 - Explain the real-world impact or capability
 - End with a thought-provoking question about implications
-- Add 3-5 hashtags ONLY at the very end, separated by a blank line
+- MANDATORY: Add exactly 3-5 relevant hashtags at the very end, on a new line after a blank line
+
+HASHTAG REQUIREMENTS (CRITICAL):
+- MUST include 3-5 hashtags (e.g., #AI #MachineLearning #DeepLearning)
+- Hashtags should be relevant to the topic and field
+- Place hashtags on the last line, separated by spaces
+- Format: #HashtagOne #HashtagTwo #HashtagThree
 
 VARIATION INSTRUCTIONS:
 - If provided a regeneration hint (in the CONTEXT argument), use it to change the angle (methodology, dataset, applications, limitations) and avoid repeating prior wording.
@@ -102,7 +108,61 @@ class LLMGenerator:
         return text.strip()
 
     @staticmethod
-    def _postprocess_content(text: str) -> Tuple[str, str, List[str]]:
+    def _generate_fallback_hashtags(text: str, topic: str = "") -> List[str]:
+        """Generate fallback hashtags based on content and topic if LLM doesn't provide them."""
+        hashtags = []
+        
+        # Base AI/ML hashtags
+        base_tags = ["#ArtificialIntelligence", "#MachineLearning", "#AI"]
+        
+        # Topic-specific hashtags
+        text_lower = text.lower() + " " + topic.lower()
+        
+        topic_keywords = {
+            "deep learning": "#DeepLearning",
+            "neural network": "#NeuralNetworks",
+            "computer vision": "#ComputerVision",
+            "nlp": "#NLP",
+            "natural language": "#NaturalLanguageProcessing",
+            "reinforcement learning": "#ReinforcementLearning",
+            "transformer": "#Transformers",
+            "llm": "#LLM",
+            "generative": "#GenerativeAI",
+            "gpt": "#GPT",
+            "drug": "#DrugDiscovery",
+            "protein": "#ProteinFolding",
+            "medical": "#AIinMedicine",
+            "healthcare": "#AIinHealthcare",
+            "climate": "#ClimateAI",
+            "robotics": "#Robotics",
+            "autonomous": "#AutonomousSystems",
+            "data": "#DataScience",
+            "research": "#AIResearch",
+            "model": "#AIModels"
+        }
+        
+        # Add relevant topic-specific tags
+        for keyword, tag in topic_keywords.items():
+            if keyword in text_lower and tag not in hashtags:
+                hashtags.append(tag)
+                if len(hashtags) >= 5:
+                    break
+        
+        # Fill with base tags if needed
+        for tag in base_tags:
+            if tag not in hashtags:
+                hashtags.append(tag)
+                if len(hashtags) >= 5:
+                    break
+        
+        # Ensure we have at least 3 hashtags
+        while len(hashtags) < 3:
+            hashtags.append(base_tags[len(hashtags) % len(base_tags)])
+        
+        return hashtags[:5]
+
+    @staticmethod
+    def _postprocess_content(text: str, topic: str = "") -> Tuple[str, str, List[str]]:
         """Extract clean content, title, and hashtags from LLM output."""
         text = LLMGenerator._aggressive_format_cleanup(text)
         
@@ -122,6 +182,19 @@ class LLMGenerator:
                 seen.add(low)
             if len(hashtags) >= 6:
                 break
+        
+        # If we don't have enough hashtags, generate fallback ones
+        if len(hashtags) < 3:
+            logger.info(f"Only {len(hashtags)} hashtags found, generating fallbacks")
+            fallback_tags = LLMGenerator._generate_fallback_hashtags(text, topic)
+            # Add fallback tags that aren't already in the list
+            for tag in fallback_tags:
+                tag_lower = tag.lower()
+                if tag_lower not in seen:
+                    hashtags.append(tag)
+                    seen.add(tag_lower)
+                if len(hashtags) >= 5:
+                    break
         
         body_text = re.sub(hashtag_pattern, '', text).strip()
         body_lines = [line for line in body_text.splitlines() if line.strip()]
@@ -356,6 +429,13 @@ USER REQUEST:
         if not repo and not niche:
             raise ValueError("Either 'repo' or 'niche' is required")
         
+        # Store the topic for hashtag generation
+        topic = niche if niche else ""
+        if repo and isinstance(repo, dict):
+            topic = repo.get("name", "")
+        elif repo and isinstance(repo, str):
+            topic = repo
+        
         if niche:
             messages = LLMGenerator._build_niche_prompt(niche, context=context)
         else:
@@ -397,7 +477,7 @@ USER REQUEST:
             if not raw_text:
                 continue
 
-            title, body, hashtags = LLMGenerator._postprocess_content(raw_text)
+            title, body, hashtags = LLMGenerator._postprocess_content(raw_text, topic)
 
             # Check in-session recent posts for duplicate content (by hash)
             try:
@@ -439,7 +519,7 @@ USER REQUEST:
             logger.error("No response from OpenRouter API")
             return None
         
-        title, body, hashtags = LLMGenerator._postprocess_content(raw_text)
+        title, body, hashtags = LLMGenerator._postprocess_content(raw_text, topic)
         
         if not LLMGenerator._validate_post_quality(body):
             logger.warning("Generated post failed quality validation")
