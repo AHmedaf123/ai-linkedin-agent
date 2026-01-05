@@ -1,0 +1,15 @@
+[
+  {
+    "run_id": "20260105193627",
+    "timestamp": "2026-01-05T19:36:27.074325",
+    "events": [
+      {
+        "type": "singleton_test",
+        "timestamp": "2026-01-05T19:36:27.074332"
+      }
+    ],
+    "timers": {},
+    "counters": {},
+    "gauges": {}
+  }
+]
