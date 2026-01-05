@@ -5,21 +5,19 @@ import argparse
 from datetime import datetime
 
 # Add parent directory to path for imports
-import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports from the repository
 from agent.llm_generator import generate_post
 from agent.linkedin_poster import post_to_linkedin
+from agent import ensure_hashtags_in_content
 
 
 def build_full_text(post: dict) -> str:
     """Return the final text to post on LinkedIn.
     Ensures hashtags are always appended to the body.
     """
-    from agent import ensure_hashtags_in_content
-    
     body = (post.get("body") or "").strip()
     hashtags = post.get("hashtags", [])
     
