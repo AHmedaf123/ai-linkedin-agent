@@ -5,27 +5,31 @@ import argparse
 from datetime import datetime
 
 # Add parent directory to path for imports
-import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Local imports from the repository
 from agent.llm_generator import generate_post
 from agent.linkedin_poster import post_to_linkedin
+from agent import ensure_hashtags_in_content
 
 
 def build_full_text(post: dict) -> str:
     """Return the final text to post on LinkedIn.
-    We use the LLM body as-is to avoid duplicating hashtags.
+    Ensures hashtags are always appended to the body.
     """
     body = (post.get("body") or "").strip()
+    hashtags = post.get("hashtags", [])
+    
     if not body:
         # Fallback: compose minimal content from title and hashtags
         title = post.get("title", "LinkedIn Update")
-        tags = post.get("hashtags", [])
-        tag_str = (" ".join(tags)).strip()
+        tag_str = (" ".join(hashtags)).strip()
         body = f"{title}\n\n{tag_str}".strip()
-    return body
+        return body
+    
+    # Use shared utility to ensure hashtags are appended
+    return ensure_hashtags_in_content(body, hashtags)
 
 
 def save_preview(post: dict, full_text: str, path_txt: str = "post_preview.txt") -> None:

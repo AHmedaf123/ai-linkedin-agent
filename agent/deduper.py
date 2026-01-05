@@ -7,10 +7,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
+# Import storage functions for persistent deduplication
+from . import storage
+
 logger = logging.getLogger("linkedin-agent")
 
-# In-memory recent posts only (no on-disk storage)
+# In-memory cache for performance
 _RECENT_POSTS: List[Dict[str, Any]] = []
+_LOADED_FROM_STORAGE = False
 MAX_HISTORY_SIZE = 30
 SIMILARITY_THRESHOLD = 0.8
 MAX_REGENERATION_ATTEMPTS = 3
@@ -19,16 +23,41 @@ MAX_REGENERATION_ATTEMPTS = 3
 class Deduper:
     @staticmethod
     def load_recent_posts() -> List[Dict[str, Any]]:
+        global _RECENT_POSTS, _LOADED_FROM_STORAGE
+        
+        # Load from persistent storage on first call
+        if not _LOADED_FROM_STORAGE:
+            try:
+                storage.init_db()
+                stored_posts = storage.get_recent_posts(limit=MAX_HISTORY_SIZE)
+                _RECENT_POSTS = stored_posts
+                _LOADED_FROM_STORAGE = True
+                logger.info(f"Loaded {len(_RECENT_POSTS)} posts from persistent storage")
+            except Exception as e:
+                logger.warning(f"Failed to load posts from storage: {e}")
+                _LOADED_FROM_STORAGE = True  # Don't retry on every call
+        
         return list(_RECENT_POSTS[:MAX_HISTORY_SIZE])
 
     @staticmethod
     def save_post(post: Dict[str, Any]) -> None:
+        global _RECENT_POSTS
+        
         record = {
             **post,
             "timestamp": datetime.utcnow().isoformat(),
             "hash": hashlib.md5(post.get("body", "").encode()).hexdigest(),
         }
-        # Prepend to keep recent first
+        
+        # Save to persistent storage
+        try:
+            storage.init_db()
+            storage.save_used_post(record)
+            logger.debug(f"Saved post to persistent storage with hash: {record['hash']}")
+        except Exception as e:
+            logger.error(f"Failed to save post to storage: {e}")
+        
+        # Update in-memory cache
         _RECENT_POSTS.insert(0, record)
         # Trim
         del _RECENT_POSTS[MAX_HISTORY_SIZE:]

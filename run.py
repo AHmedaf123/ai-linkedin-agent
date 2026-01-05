@@ -21,6 +21,7 @@ from agent.metrics import get_metrics_tracker
 from agent.content_strategy import get_next_content_strategy, save_topic_history
 from agent.engagement_tracker import fetch_linkedin_engagement, get_engagement_stats
 from agent.self_healer import handle_error, process_retry_queue, check_system_health, retry_with_backoff
+from agent import ensure_hashtags_in_content
 
 # --- Global Configuration and Logger Setup ---
 # Configure structured JSON logging
@@ -458,6 +459,15 @@ class LinkedInAgent:
     @handled_operation("LinkedIn posting", send_report=True, retry=True)
     def _publish_to_linkedin(self, post_content: str, post_data: dict) -> None:
         """Publishes the post to LinkedIn or simulates in dry-run mode."""
+        # Append hashtags to post content if they exist and aren't already in the body
+        hashtags = post_data.get("hashtags", [])
+        if hashtags:
+            original_content = post_content
+            post_content = ensure_hashtags_in_content(post_content, hashtags)
+            if post_content != original_content:
+                self.logger.info(f"Appended {len(hashtags)} hashtags to post", 
+                                extra={"event": "hashtags_appended", "count": len(hashtags)})
+        
         if self.enable_post:
             post_to_linkedin(post_content)
             self.logger.info("Successfully posted to LinkedIn",
