@@ -1,54 +1,6 @@
 [
   {
-    "topic": "AI Engineering for Scientific Workflows",
-    "timestamp": "2025-12-15T20:28:18.543795"
-  },
-  {
-    "topic": "Autonomous Scientific Agents",
-    "timestamp": "2025-12-15T20:28:33.155109"
-  },
-  {
-    "topic": "Molecular ML Case Studies",
-    "timestamp": "2025-12-15T20:28:49.907834"
-  },
-  {
-    "topic": "Explainable ML for Molecules",
-    "timestamp": "2025-12-15T20:28:58.790219"
-  },
-  {
-    "topic": "Super Suffixes: Bypassing Text Generation Alignment and Guard Models Simultaneously",
-    "timestamp": "2025-12-15T20:39:11.488402"
-  },
-  {
-    "topic": "Computational Chemistry + AI Commentary",
-    "timestamp": "2025-12-15T20:39:27.946672"
-  },
-  {
-    "topic": "A General Algorithm for Detecting Higher-Order Interactions via Random Sequential Additions",
-    "timestamp": "2025-12-15T20:39:42.049763"
-  },
-  {
-    "topic": "Particulate: Feed-Forward 3D Object Articulation",
-    "timestamp": "2025-12-15T20:39:54.454859"
-  },
-  {
-    "topic": "Spherical Leech Quantization for Visual Tokenization and Generation",
-    "timestamp": "2025-12-18T01:15:45.255325"
-  },
-  {
-    "topic": "Protein Folding with Deep Learning",
-    "timestamp": "2025-12-18T01:18:38.777065"
-  },
-  {
-    "topic": "AI-Driven Clinical Trial Optimization",
-    "timestamp": "2025-12-18T01:18:57.026061"
-  },
-  {
-    "topic": "Biomarker Discovery using ML",
-    "timestamp": "2025-12-18T01:19:09.072893"
-  },
-  {
-    "topic": "De Novo Drug Design",
-    "timestamp": "2025-12-18T01:19:25.033129"
+    "topic": "MLOps for Scientific Computing",
+    "timestamp": "2026-01-14T11:51:59.526169"
   }
 ]
