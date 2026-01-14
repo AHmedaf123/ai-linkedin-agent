@@ -548,8 +548,15 @@ class LinkedInAgent:
             # 7. Update next post schedule (non-critical, continue if fails)
             if self.posted: # Only update schedule if a post was effectively made/drafted
                 self._update_next_post_schedule()
-                # Topic is now saved during content strategy selection in get_next_topic_strategy()
-                # No need to save it again here to avoid duplicates
+                # Save topic to history ONLY after successful posting to avoid duplicates
+                # Extract the topic from the generated post metadata
+                topic = generated_post.get('primary_topic') or generated_post.get('topic') or generated_post.get('title', 'Unknown Topic')
+                try:
+                    save_topic_history(topic)
+                    self.logger.info(f"Saved topic to history after successful post: {topic}",
+                                   extra={"event": "topic_history_saved", "topic": topic})
+                except Exception as e:
+                    self.logger.warning(f"Failed to save topic to history: {e}")
 
             set_github_output("posted", str(self.posted).lower())
             

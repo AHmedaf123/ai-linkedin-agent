@@ -356,12 +356,17 @@ USER REQUEST:
         if not repo and not niche:
             raise ValueError("Either 'repo' or 'niche' is required")
         
+        # Store the source type and topic for history tracking
+        source_type = "niche" if niche else "repo"
+        topic_name = niche
+        
         if niche:
             messages = LLMGenerator._build_niche_prompt(niche, context=context)
         else:
             repo_info = fetch_repo_details(repo) if isinstance(repo, str) else repo
             if not isinstance(repo_info, dict):
                 return None
+            topic_name = repo_info.get("name", str(repo))
             messages = LLMGenerator._build_repo_prompt(repo_info)
         
         # Try generation and retry on in-session duplicates up to 3 attempts
@@ -482,7 +487,9 @@ USER REQUEST:
             "body": final_body,
             "seo_score": best_score,
             "seo_keywords": best_result.get("keywords", []),
-            "hashtags": final_hashtags[:6]
+            "hashtags": final_hashtags[:6],
+            "primary_topic": topic_name,
+            "source": source_type
         }
 
 

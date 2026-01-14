@@ -120,7 +120,9 @@ Check it out and let me know your thoughts. Always open to feedback and collabor
         "body": fallback_body.strip(),
         "seo_score": seo_score,
         "seo_keywords": seo_keywords,
-        "hashtags": ["#AI", "#MachineLearning", "#OpenSource", "#GitHub"]
+        "hashtags": ["#AI", "#MachineLearning", "#OpenSource", "#GitHub"],
+        "primary_topic": data['name'],  # Store repo name as topic for history tracking
+        "source": "repo"
     }
 
 

@@ -73,7 +73,7 @@ def get_next_niche_round_robin() -> str:
     niches = load_niches_list()
     if not niches:
         fallback_topic = "Artificial Intelligence"
-        save_topic_history(fallback_topic)
+        # Do NOT save to history here - will be saved after successful post
         return fallback_topic
     
     start_idx = -1
@@ -92,7 +92,7 @@ def get_next_niche_round_robin() -> str:
         topic = niches[idx]
         
         if not is_topic_cooldown(topic):
-            # Found a valid topic - save to history immediately
+            # Found a valid topic - update index but DON'T save to history yet
             try:
                 with open(NICHE_INDEX_PATH, "w", encoding="utf-8") as f:
                     json.dump({
@@ -104,14 +104,13 @@ def get_next_niche_round_robin() -> str:
             except Exception as e:
                 logger.warning(f"Failed to save niche index: {e}")
             
-            # Save to topic history BEFORE returning to prevent re-selection
-            save_topic_history(topic)
+            # Do NOT save to history here - will be saved after successful post
             return topic
             
     # If all on cooldown, just return the next one anyway to avoid breaking
     idx = (start_idx + 1) % len(niches)
     selected_topic = niches[idx]
-    save_topic_history(selected_topic)
+    # Do NOT save to history here - will be saved after successful post
     return selected_topic
 
 
@@ -282,8 +281,7 @@ def get_next_topic_strategy() -> Dict:
                 if trending_topics:
                     selection = random.choice(trending_topics)
                     topic = selection["topic"]
-                    # Save to history immediately when selected
-                    save_topic_history(topic)
+                    # Do NOT save to history here - will be saved after successful post
                     logger.info(f"Content strategy: Using trending AI topic: {topic}")
                     return {
                         "source": "trending",
@@ -318,8 +316,7 @@ def get_next_topic_strategy() -> Dict:
                 if trending_topics:
                     selection = random.choice(trending_topics)
                     topic = selection["topic"]
-                    # Save to history immediately when selected
-                    save_topic_history(topic)
+                    # Do NOT save to history here - will be saved after successful post
                     return {
                         "source": "trending",
                         "topic": topic,
@@ -334,7 +331,7 @@ def get_next_topic_strategy() -> Dict:
     
     logger.info("Content strategy: Using generic AI topic fallback")
     fallback_topic = "Artificial Intelligence and Machine Learning"
-    save_topic_history(fallback_topic)
+    # Do NOT save to history here - will be saved after successful post
     return {
         "source": "fallback",
         "topic": fallback_topic,
