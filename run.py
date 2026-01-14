@@ -550,7 +550,17 @@ class LinkedInAgent:
                 self._update_next_post_schedule()
                 # Save topic to history ONLY after successful posting to avoid duplicates
                 # Extract the topic from the generated post metadata
-                topic = generated_post.get('primary_topic') or generated_post.get('topic') or generated_post.get('title', 'Unknown Topic')
+                # Note: All generators should provide 'primary_topic', but we keep 'topic' as legacy fallback
+                topic = generated_post.get('primary_topic')
+                if not topic:
+                    # Fallback to legacy 'topic' key (for backward compatibility)
+                    topic = generated_post.get('topic')
+                    if not topic:
+                        # Last resort: use title and log warning
+                        topic = generated_post.get('title', 'Untitled Post')
+                        self.logger.warning(f"Could not determine primary topic for post, using title: {topic}",
+                                          extra={"event": "topic_fallback_to_title"})
+                
                 try:
                     save_topic_history(topic)
                     self.logger.info(f"Saved topic to history after successful post: {topic}",

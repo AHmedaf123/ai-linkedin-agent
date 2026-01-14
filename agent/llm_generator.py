@@ -358,7 +358,8 @@ USER REQUEST:
         
         # Store the source type and topic for history tracking
         source_type = "niche" if niche else "repo"
-        topic_name = niche
+        # Initialize topic_name - will be updated for repo posts
+        topic_name = niche if niche else None
         
         if niche:
             messages = LLMGenerator._build_niche_prompt(niche, context=context)
@@ -366,7 +367,8 @@ USER REQUEST:
             repo_info = fetch_repo_details(repo) if isinstance(repo, str) else repo
             if not isinstance(repo_info, dict):
                 return None
-            topic_name = repo_info.get("name", str(repo))
+            # Update topic_name with repo name
+            topic_name = repo_info.get("name") or str(repo) if isinstance(repo, str) else "Unknown Repository"
             messages = LLMGenerator._build_repo_prompt(repo_info)
         
         # Try generation and retry on in-session duplicates up to 3 attempts
