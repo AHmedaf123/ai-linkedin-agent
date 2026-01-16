@@ -1,145 +1,145 @@
-name: Daily LinkedIn Post
+# name: Daily LinkedIn Post
 
-on:
-  schedule:
-    # Pakistan Time = UTC+5
-    # 12:00 AM PKT = 19:00 UTC (previous day)
-    # 12:00 PM PKT = 07:00 UTC
-    - cron: '0 19 * * *'
-  workflow_dispatch: # Allow manual run
+# on:
+#   schedule:
+#     # Pakistan Time = UTC+5
+#     # 12:00 AM PKT = 19:00 UTC (previous day)
+#     # 12:00 PM PKT = 07:00 UTC
+#     - cron: '0 19 * * *'
+#   workflow_dispatch: # Allow manual run
 
-permissions:
-  contents: write
+# permissions:
+#   contents: write
 
-concurrency:
-  group: linkedin-posting
-  cancel-in-progress: false
+# concurrency:
+#   group: linkedin-posting
+#   cancel-in-progress: false
 
-jobs:
-  post:
-    runs-on: ubuntu-latest
-    env:
-      AI_LINKED_INSECRETS: ${{ secrets.AI_LINKED_INSECRETS }}
-      HEADLESS: true  # ✅ Force headless globally
+# jobs:
+#   post:
+#     runs-on: ubuntu-latest
+#     env:
+#       AI_LINKED_INSECRETS: ${{ secrets.AI_LINKED_INSECRETS }}
+#       HEADLESS: true  # ✅ Force headless globally
 
-    steps:
-      # --- Always pull the latest main branch ---
-      - name: Checkout latest main branch
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
+#     steps:
+#       # --- Always pull the latest main branch ---
+#       - name: Checkout latest main branch
+#         uses: actions/checkout@v4
+#         with:
+#           ref: main
+#           fetch-depth: 0
 
-      - name: Ensure latest commit from origin/main
-        run: |
-          git fetch origin main
-          git reset --hard origin/main
-          echo "✅ Synced with latest commit:"
-          git log -1 --oneline
+#       - name: Ensure latest commit from origin/main
+#         run: |
+#           git fetch origin main
+#           git reset --hard origin/main
+#           echo "✅ Synced with latest commit:"
+#           git log -1 --oneline
 
-      # --- Setup Python ---
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+#       # --- Setup Python ---
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.11'
 
-      # --- Cache pip dependencies ---
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+#       # --- Cache pip dependencies ---
+#       - name: Cache pip dependencies
+#         uses: actions/cache@v4
+#         with:
+#           path: ~/.cache/pip
+#           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}-${{ github.run_id }}
+#           restore-keys: |
+#             ${{ runner.os }}-pip-
 
-      # --- Install dependencies ---
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+#       # --- Install dependencies ---
+#       - name: Install dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r requirements.txt
 
-      # --- Cache Playwright browsers ---
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+#       # --- Cache Playwright browsers ---
+#       - name: Cache Playwright browsers
+#         uses: actions/cache@v4
+#         with:
+#           path: ~/.cache/ms-playwright
+#           key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}-${{ github.run_id }}
+#           restore-keys: |
+#             ${{ runner.os }}-playwright-
 
-      - name: Install Playwright browsers
-        run: python -m playwright install --with-deps chromium
+#       - name: Install Playwright browsers
+#         run: python -m playwright install --with-deps chromium
 
-      # --- Load packed secrets ---
-      - name: Load packed secrets
-        if: ${{ env.AI_LINKED_INSECRETS != '' }}
-        run: |
-          python - <<'PY'
-          import os, json, sys
-          data = os.environ.get("AI_LINKED_INSECRETS")
-          if not data:
-              print("AI_LINKED_INSECRETS secret is not set.", file=sys.stderr)
-              sys.exit(1)
-          try:
-              j = json.loads(data)
-          except Exception as e:
-              print(f"Invalid JSON in AI_LINKED_INSECRETS: {e}", file=sys.stderr)
-              sys.exit(1)
-          with open(os.environ["GITHUB_ENV"], "a") as f:
-              for k, v in j.items():
-                  print(f"{k}={v}", file=f)
-          PY
+#       # --- Load packed secrets ---
+#       - name: Load packed secrets
+#         if: ${{ env.AI_LINKED_INSECRETS != '' }}
+#         run: |
+#           python - <<'PY'
+#           import os, json, sys
+#           data = os.environ.get("AI_LINKED_INSECRETS")
+#           if not data:
+#               print("AI_LINKED_INSECRETS secret is not set.", file=sys.stderr)
+#               sys.exit(1)
+#           try:
+#               j = json.loads(data)
+#           except Exception as e:
+#               print(f"Invalid JSON in AI_LINKED_INSECRETS: {e}", file=sys.stderr)
+#               sys.exit(1)
+#           with open(os.environ["GITHUB_ENV"], "a") as f:
+#               for k, v in j.items():
+#                   print(f"{k}={v}", file=f)
+#           PY
 
-      # --- Run AI Agent ---
-      - name: Run AI Agent
-        env:
-          LINKEDIN_STORAGE_ONLY: "true"
-          LINKEDIN_STORAGE_B64: ${{ secrets.LINKEDIN_STORAGE_B64 }}
-          LINKEDIN_FEED_FIRST_WAIT_MS: "60000"
-          LINKEDIN_LOGIN_NAV_TIMEOUT_MS: "120000"
-          LINKEDIN_DEFAULT_TIMEOUT_MS: "60000"
-          HEADLESS: "true"
-          LOG_LEVEL_CONSOLE: "INFO"
-          LOG_LEVEL_FILE: "DEBUG"
-          ENABLE_POST: "true"
-        run: |
-          RUN_ARGS="--force"
-          if [ "$ENABLE_POST" != "true" ]; then
-            echo "Running in dry-run mode because ENABLE_POST is not 'true'"
-            RUN_ARGS="$RUN_ARGS --dry-run"
-          else
-            echo "ENABLE_POST is 'true', attempting to post."
-          fi
-          python run.py $RUN_ARGS
+#       # --- Run AI Agent ---
+#       - name: Run AI Agent
+#         env:
+#           LINKEDIN_STORAGE_ONLY: "true"
+#           LINKEDIN_STORAGE_B64: ${{ secrets.LINKEDIN_STORAGE_B64 }}
+#           LINKEDIN_FEED_FIRST_WAIT_MS: "60000"
+#           LINKEDIN_LOGIN_NAV_TIMEOUT_MS: "120000"
+#           LINKEDIN_DEFAULT_TIMEOUT_MS: "60000"
+#           HEADLESS: "true"
+#           LOG_LEVEL_CONSOLE: "INFO"
+#           LOG_LEVEL_FILE: "DEBUG"
+#           ENABLE_POST: "true"
+#         run: |
+#           RUN_ARGS="--force"
+#           if [ "$ENABLE_POST" != "true" ]; then
+#             echo "Running in dry-run mode because ENABLE_POST is not 'true'"
+#             RUN_ARGS="$RUN_ARGS --dry-run"
+#           else
+#             echo "ENABLE_POST is 'true', attempting to post."
+#           fi
+#           python run.py $RUN_ARGS
 
-      # --- Upload artifacts on failure ---
-      - name: Upload artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-artifacts
-          path: |
-            post_preview.txt
-            linkedin_agent.log
-            structured_logs.json
-            *_screenshot.png
-            *_page.html
-          if-no-files-found: ignore
-          retention-days: 5
+#       # --- Upload artifacts on failure ---
+#       - name: Upload artifacts on failure
+#         if: failure()
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: debug-artifacts
+#           path: |
+#             post_preview.txt
+#             linkedin_agent.log
+#             structured_logs.json
+#             *_screenshot.png
+#             *_page.html
+#           if-no-files-found: ignore
+#           retention-days: 5
 
-      # --- Commit state changes (if any) ---
-      - name: Commit state changes (if any)
-        run: |
-          if [ -f agent/state.json ]; then
-            git config --local user.email "github-actions[bot]@users.noreply.github.com"
-            git config --local user.name "github-actions[bot]"
-            git add agent/state.json
-            if ! git diff --cached --quiet; then
-              git commit -m "chore(schedule): update state"
-              git push
-            else
-              echo "No state changes to commit."
-            fi
-          else
-            echo "No agent/state.json found; skipping commit."
-          fi
+#       # --- Commit state changes (if any) ---
+#       - name: Commit state changes (if any)
+#         run: |
+#           if [ -f agent/state.json ]; then
+#             git config --local user.email "github-actions[bot]@users.noreply.github.com"
+#             git config --local user.name "github-actions[bot]"
+#             git add agent/state.json
+#             if ! git diff --cached --quiet; then
+#               git commit -m "chore(schedule): update state"
+#               git push
+#             else
+#               echo "No state changes to commit."
+#             fi
+#           else
+#             echo "No agent/state.json found; skipping commit."
+#           fi
