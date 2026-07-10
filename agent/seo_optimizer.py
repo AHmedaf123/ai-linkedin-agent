@@ -8,29 +8,32 @@ from collections import Counter
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-3-12b-it:free")
 
-SEO_SYSTEM_PROMPT = """You are an expert LinkedIn SEO and engagement optimizer. 
-Analyze posts for discoverability, engagement potential, and clarity.
+SEO_SYSTEM_PROMPT = """You are a light-touch editor for a human engineer's LinkedIn post.
+Your job is to keep it sounding like a real person wrote it, fix only obvious problems, and
+suggest a couple of relevant keywords/hashtags. You must NOT corporate-ify or over-polish it.
 Return only valid JSON with no additional text."""
 
-SEO_USER_TEMPLATE = """Analyze and optimize this LinkedIn post for maximum engagement and discoverability.
+SEO_USER_TEMPLATE = """Lightly clean up this LinkedIn post. It is meant to sound like a real
+AI/ML engineer telling a small story from their own work, in simple non-native English.
 
 Original post:
 {post}
 
-Requirements:
-- Keep it 150-220 words, under 1,300 characters
-- Write naturally like humans speak - NO formatting symbols, NO labels, NO structure markers
-- Ensure 3-6 highly relevant hashtags (mix trending + niche) at the very end only
-- Weave 8-12 natural domain keywords into the conversation
-- Maintain authentic voice and conversational tone
-- Preserve any @mentions and links
+Rules:
+- Preserve the author's voice, story, and simple wording. Do NOT rewrite it into polished
+  corporate English. Small grammar fixes only.
+- Keep it 90-180 words, under 1,300 characters.
+- No emojis, no bullet points, no numbered lists, no bold, no section labels.
+- Do NOT stuff keywords. Do NOT add hype words (game-changer, seamless, leverage, unlock, etc).
+- Hashtags: 0 to 2 only, plain and relevant (e.g. #AIEngineering #LLM), at the very end.
+- Preserve any @mentions and links.
 
 Return JSON with:
 {{
-  "optimized_post": "the enhanced post text",
+  "optimized_post": "the lightly cleaned post text",
   "llm_seo_score": 85,
   "keywords": ["keyword1", "keyword2", ...],
-  "hashtags": ["#Hashtag1", "#Hashtag2", ...]
+  "hashtags": ["#Hashtag1", "#Hashtag2"]
 }}
 """
 
@@ -146,38 +149,28 @@ def _keyword_density_score(text: str, keywords: List[str]) -> int:
 
 
 def _hashtag_quality_score(tags: List[str]) -> int:
-    """Enhanced hashtag scoring with diversity, uniqueness, and relevance."""
-    if not tags:
-        return 0
-    
-    tags_lower = [t.lower() for t in tags]
-    count = len(tags_lower)
-    
-    count_score = 100 if 3 <= count <= 5 else max(0, 100 - abs(count - 4) * 15)
-    
-    broad_count = sum(1 for t in tags_lower if t in BROAD_HASHTAGS)
-    niche_count = sum(1 for t in tags_lower if t in NICHE_HASHTAGS)
-    
-    if broad_count > 0 and niche_count > 0:
-        diversity_score = 100
-    elif broad_count > 0 or niche_count > 0:
-        diversity_score = 70
+    """Hashtag scoring for the humanized style: 0-2 plain tags is ideal.
+
+    Real engineers rarely stack 5 hashtags, so we reward restraint (0-2), give a
+    small penalty for 3, and penalize hashtag-stuffing.
+    """
+    count = len(tags)
+    if count <= 2:
+        count_score = 100
+    elif count == 3:
+        count_score = 80
     else:
-        diversity_score = 40
-    
+        count_score = max(0, 100 - (count - 3) * 30)
+
+    if count == 0:
+        # No hashtags is acceptable in this style; neutral-good.
+        return 85
+
+    tags_lower = [t.lower() for t in tags]
     unique_count = len(set(tags_lower))
-    uniqueness_score = int((unique_count / count) * 100) if count > 0 else 0
-    
-    relevance_score = int(((niche_count / count) * 100)) if count > 0 else 50
-    
-    final_score = int(
-        0.30 * count_score +
-        0.35 * diversity_score +
-        0.20 * uniqueness_score +
-        0.15 * relevance_score
-    )
-    
-    return min(100, final_score)
+    uniqueness_score = int((unique_count / count) * 100)
+
+    return min(100, int(0.7 * count_score + 0.3 * uniqueness_score))
 
 
 def _engagement_score(text: str) -> int:
@@ -195,44 +188,51 @@ def _engagement_score(text: str) -> int:
     else:
         readability = max(0, int(100 - abs(avg_sentence_length - 16) * 5))
     
+    # Emojis are banned in the humanized style, so their presence is a small penalty.
     emoji_count = len(EMOJI_REGEX.findall(text))
-    emoji_score = min(100, emoji_count * 25)
-    
+    emoji_score = 100 if emoji_count == 0 else max(0, 100 - emoji_count * 40)
+
+    # One honest closing question is fine; more than two reads as engagement-baiting.
     question_count = text.count('?')
-    question_score = min(100, question_count * 40)
-    
+    if question_count <= 1:
+        question_score = 100
+    elif question_count == 2:
+        question_score = 80
+    else:
+        question_score = max(0, 100 - (question_count - 2) * 30)
+
     lines = [ln for ln in text.splitlines() if ln.strip()]
     max_line_length = max((len(ln) for ln in lines), default=0)
-    
-    if max_line_length <= 100:
+
+    if max_line_length <= 120:
         scan_score = 100
     else:
-        scan_score = max(0, int(100 - (max_line_length - 100) * 0.5))
-    
+        scan_score = max(0, int(100 - (max_line_length - 120) * 0.5))
+
     paragraphs = text.split('\n\n')
-    para_score = 100 if 2 <= len(paragraphs) <= 5 else max(0, 100 - abs(len(paragraphs) - 3) * 15)
-    
+    para_score = 100 if 2 <= len(paragraphs) <= 6 else max(0, 100 - abs(len(paragraphs) - 3) * 15)
+
     final_score = int(
-        0.30 * readability +
+        0.35 * readability +
         0.15 * emoji_score +
-        0.25 * question_score +
+        0.20 * question_score +
         0.20 * scan_score +
         0.10 * para_score
     )
-    
+
     return min(100, final_score)
 
 
 def _content_quality_score(text: str, keywords: List[str]) -> int:
     """Calculate overall content quality for LinkedIn."""
     word_count = len(WORD_REGEX.findall(text))
-    
-    if 150 <= word_count <= 220:
+
+    if 90 <= word_count <= 180:
         length_score = 100
-    elif 120 <= word_count <= 250:
+    elif 70 <= word_count <= 210:
         length_score = 85
     else:
-        length_score = max(0, 100 - abs(word_count - 185) * 2)
+        length_score = max(0, 100 - abs(word_count - 135) * 2)
     
     char_count = len(text)
     char_score = 100 if char_count <= 1300 else max(0, int(100 - (char_count - 1300) * 0.1))

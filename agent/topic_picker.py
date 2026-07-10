@@ -24,16 +24,16 @@ def get_weekday_topic() -> Dict[str, Any]:
     if not os.path.exists(calendar_path):
         weekday = datetime.datetime.now().weekday()
         weekday_topics = {
-            0: "GenAI for Drug Discovery",
-            1: "AI Case Studies",
-            2: "MLOps Tips",
-            3: "AI Explainability",
-            4: "AI Tooling and Stacks",
-            5: "Personal AI Learning",
-            6: "Weekly AI Recap"
+            0: "Building Agentic Workflows with Claude",
+            1: "AI API Implementation Details",
+            2: "RAG Pipelines in Production",
+            3: "Prompt Engineering Patterns Juniors Miss",
+            4: "Production Patterns Tutorials Skip",
+            5: "Things I Learned Building AI Products",
+            6: "Choosing Models and Tools"
         }
         return {
-            "primary_topic": weekday_topics.get(weekday, "Artificial Intelligence"),
+            "primary_topic": weekday_topics.get(weekday, "Practical LLM Engineering"),
             "subtopic": None,
             "post_type": "general",
             "part": 1,
@@ -180,6 +180,7 @@ def get_niche_post(topic: Optional[str] = None, template: Optional[Dict[str, str
                 **llm_post,
                 "primary_topic": primary_topic,
                 "subtopic": subtopic,
+                "post_type": post_type,
                 "part": part,
                 "total": total
             }

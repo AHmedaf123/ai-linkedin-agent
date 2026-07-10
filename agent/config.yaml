@@ -4,34 +4,36 @@
     "smtp_server": "smtp.gmail.com"
   },
   "niches": [
-    "AI for Drug Discovery",
-    "Generative Models for Molecules",
-    "ML for Structural Biology",
-    "AI Engineering for Scientific Workflows",
-    "Autonomous Scientific Agents",
-    "Molecular ML Case Studies",
-    "Explainable ML for Molecules",
-    "Computational Chemistry + AI Commentary",
-    "Protein Folding with Deep Learning",
-    "AI-Driven Clinical Trial Optimization",
-    "Biomarker Discovery using ML",
-    "De Novo Drug Design",
-    "Molecular Property Prediction",
-    "AI in Precision Medicine",
-    "Quantum Chemistry meets ML",
-    "MLOps for Scientific Computing",
-    "Graph Neural Networks for Molecules",
-    "Reinforcement Learning in Drug Design"
+    "Building Agentic Workflows with Claude",
+    "LLM API Cost Optimization",
+    "Prompt Engineering Patterns Juniors Miss",
+    "RAG Pipeline Mistakes at Scale",
+    "Context Window Management in Production",
+    "Handling LLM Rate Limits and Retries",
+    "Structured Output and Tool Use with LLMs",
+    "Error Handling in AI API Integrations",
+    "Evaluating LLM Outputs in Production",
+    "Streaming Responses and Latency Tuning",
+    "Caching Strategies for LLM Apps",
+    "Defending Against Prompt Injection",
+    "Fine-tuning vs Prompting Trade-offs",
+    "Building Reliable AI Agents",
+    "Token Budgeting and Context Management",
+    "Debugging Nondeterministic LLM Behavior",
+    "Orchestrating Multi-step LLM Pipelines",
+    "Choosing the Right Model for the Job"
   ],
   "posting": {
-    "start_time": "11:00",
+    "start_time": "10:00",
+    "candidate_times": ["10:00"],
+    "time_window_end": 300,
     "time_increment": 30,
     "timezone": "Asia/Karachi"
   },
   "user": {
     "name": "Muhammad Ahmed",
-    "persona": "AI & Bioinformatics Researcher | Building Generative Models for Drug Discovery",
-    "voice": "Professional but approachable | Insight-driven | AI-focused",
+    "persona": "AI/ML Engineer | Building real LLM-powered products and agents",
+    "voice": "Practical builder | First-person real experience | Simple, direct, non-native English | No corporate hype",
     "linkedin_profile_url": "https://www.linkedin.com/in/muhammad-ahmed-afzal/"
   }
 }

@@ -1,136 +1,125 @@
+"""Posting-time gate with candidate-slot rotation.
+
+Config (agent/config.yaml → posting):
+  start_time:       "11:00"            fallback slot
+  candidate_times:  ["11:00", ...]     optional; slots rotate by day so different
+                                       posting times can be A/B tested (posted_at
+                                       is stored per post, so performance per slot
+                                       can be compared later)
+  time_window_end:  120                minutes the window stays open after the slot
+  timezone:         "Asia/Karachi"
+
+State lives in the SQLite store (survives CI runs via the committed DB) and is
+mirrored to agent/state.json for easy inspection.
+"""
+
 import yaml
 import datetime as dt
-import pytz
 import json
 import os
 
-def should_post_now():
-    """
-    Determines if the current time falls within the posting window based on configuration.
-    Returns True if we should post now, False otherwise.
-    """
+import pytz
+
+from agent import storage
+
+STATE_FILE = "agent/state.json"
+CONFIG_PATH = "agent/config.yaml"
+
+LAST_POSTED_KEY = "last_posted_date"
+NEXT_POST_KEY = "next_post_time"
+
+
+def _load_posting_config() -> dict:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+    return cfg.get("posting", {})
+
+
+def _get_timezone(posting_cfg: dict):
+    return pytz.timezone(posting_cfg.get("timezone", "Asia/Karachi"))
+
+
+def _candidate_times(posting_cfg: dict) -> list:
+    times = posting_cfg.get("candidate_times")
+    if isinstance(times, list) and times:
+        return [str(t) for t in times]
+    return [str(posting_cfg.get("start_time", "11:00"))]
+
+
+def parse_time_with_timezone(time_str, timezone, day=None):
+    """Parse HH:MM into a timezone-aware datetime for the given day (default today)."""
+    hours, minutes = map(int, str(time_str).split(":"))
+    now = dt.datetime.now(timezone)
+    day = day or now.date()
+    return timezone.localize(dt.datetime(day.year, day.month, day.day, hours, minutes))
+
+
+def get_slot_for_day(day: dt.date, posting_cfg: dict = None) -> str:
+    """Deterministic slot for a calendar day: rotates through candidate_times."""
+    posting_cfg = posting_cfg or _load_posting_config()
+    times = _candidate_times(posting_cfg)
+    return times[day.timetuple().tm_yday % len(times)]
+
+
+def _write_state_mirror(state: dict) -> None:
     try:
-        # Load configuration
-        with open("agent/config.yaml", "r") as f:
-            cfg = yaml.safe_load(f)
-        
-        # Get posting configuration
-        start_time_str = cfg["posting"]["start_time"]
-        time_increment = cfg["posting"]["time_increment"]
-        timezone_str = cfg["posting"]["timezone"]
-        
-        # Default end window to 2 hours if not specified
-        time_window_end = cfg["posting"].get("time_window_end", 120)
-        
-        # Get the timezone
-        timezone = pytz.timezone(timezone_str)
-        
-        # Get current time in the configured timezone
-        now = dt.datetime.now(timezone)
-        
-        # Check if we have a state file with the next post time
-        state_file = "agent/state.json"
-        if os.path.exists(state_file):
-            with open(state_file, "r") as f:
-                state = json.load(f)
-                next_post_time_str = state.get("next_post_time")
-                if next_post_time_str:
-                    next_post_time = dt.datetime.fromisoformat(next_post_time_str)
-                    # Convert to timezone-aware if it's not
-                    if next_post_time.tzinfo is None:
-                        next_post_time = timezone.localize(next_post_time)
-                else:
-                    # If no next post time, use the start time from config
-                    next_post_time = parse_time_with_timezone(start_time_str, timezone)
-        else:
-            # If no state file exists, use the start time from config
-            next_post_time = parse_time_with_timezone(start_time_str, timezone)
-        
-        # Calculate the end of the posting window
-        window_end = next_post_time + dt.timedelta(minutes=time_window_end)
-        
-        # Check if current time is within the posting window
-        should_post = next_post_time <= now <= window_end
-        
-        return should_post
-    
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
     except Exception as e:
-        print(f"Error in should_post_now: {str(e)}")
+        print(f"Warning: could not write {STATE_FILE}: {e}")
+
+
+def should_post_now(force: bool = False) -> bool:
+    """True when inside today's posting window and nothing was posted today yet."""
+    if force:
+        return True
+    try:
+        posting_cfg = _load_posting_config()
+        timezone = _get_timezone(posting_cfg)
+        now = dt.datetime.now(timezone)
+        today = now.date()
+
+        last_posted = storage.get_state(LAST_POSTED_KEY)
+        if last_posted == today.isoformat():
+            return False  # already posted today
+
+        slot = parse_time_with_timezone(get_slot_for_day(today, posting_cfg), timezone, today)
+        window_minutes = int(posting_cfg.get("time_window_end", 120))
+        window_end = slot + dt.timedelta(minutes=window_minutes)
+
+        return slot <= now <= window_end
+    except Exception as e:
+        print(f"Error in should_post_now: {e}")
         # Default to False on error to prevent unintended posts
         return False
 
-def parse_time_with_timezone(time_str, timezone):
-    """
-    Parse a time string (HH:MM) and return a timezone-aware datetime for today.
-    """
-    hours, minutes = map(int, time_str.split(":"))
-    now = dt.datetime.now(timezone)
-    return timezone.localize(dt.datetime(now.year, now.month, now.day, hours, minutes))
 
 def update_next_post_time():
-    """
-    Updates the next post time in the state file based on the current configuration.
-    Returns the new next_post_time as an ISO 8601 string.
+    """Record that today's post happened; schedule tomorrow's slot.
+
+    Returns the next post time as an ISO 8601 string (or None on error).
     """
     try:
-        # Load configuration
-        with open("agent/config.yaml", "r") as f:
-            cfg = yaml.safe_load(f)
-        
-        # Get posting configuration
-        start_time_str = cfg["posting"]["start_time"]
-        time_increment = cfg["posting"]["time_increment"]
-        timezone_str = cfg["posting"]["timezone"]
-        
-        # Get the timezone
-        timezone = pytz.timezone(timezone_str)
-        
-        # Get current time in the configured timezone
+        posting_cfg = _load_posting_config()
+        timezone = _get_timezone(posting_cfg)
         now = dt.datetime.now(timezone)
-        
-        # Check if we have a state file with the next post time
-        state_file = "agent/state.json"
-        if os.path.exists(state_file):
-            with open(state_file, "r") as f:
-                state = json.load(f)
-                next_post_time_str = state.get("next_post_time")
-                if next_post_time_str:
-                    current_next_time = dt.datetime.fromisoformat(next_post_time_str)
-                    # Convert to timezone-aware if it's not
-                    if current_next_time.tzinfo is None:
-                        current_next_time = timezone.localize(current_next_time)
-                else:
-                    # If no next post time, use the start time from config
-                    current_next_time = parse_time_with_timezone(start_time_str, timezone)
-        else:
-            # If no state file exists, use the start time from config
-            current_next_time = parse_time_with_timezone(start_time_str, timezone)
-            state = {}
-        
-        # Calculate the new next post time by adding the increment
-        new_next_time = current_next_time + dt.timedelta(minutes=time_increment)
-        
-        # If the new time is after 2 PM, reset to the start time for the next day
-        if new_next_time.hour >= 14:  # 2 PM
-            tomorrow = now + dt.timedelta(days=1)
-            hours, minutes = map(int, start_time_str.split(":"))
-            new_next_time = timezone.localize(dt.datetime(tomorrow.year, tomorrow.month, tomorrow.day, hours, minutes))
-        
-        # Update the state file
-        state["next_post_time"] = new_next_time.isoformat()
-        with open(state_file, "w") as f:
-            json.dump(state, f, indent=2)
-        
-        return state["next_post_time"]
-    
+        today = now.date()
+        tomorrow = today + dt.timedelta(days=1)
+
+        next_time = parse_time_with_timezone(get_slot_for_day(tomorrow, posting_cfg), timezone, tomorrow)
+
+        storage.set_state(LAST_POSTED_KEY, today.isoformat())
+        storage.set_state(NEXT_POST_KEY, next_time.isoformat())
+        _write_state_mirror({
+            LAST_POSTED_KEY: today.isoformat(),
+            NEXT_POST_KEY: next_time.isoformat(),
+        })
+        return next_time.isoformat()
     except Exception as e:
-        print(f"Error in update_next_post_time: {str(e)}")
+        print(f"Error in update_next_post_time: {e}")
         return None
 
+
 if __name__ == "__main__":
-    # For testing
-    should_post = should_post_now()
-    print(f"Should post now: {should_post}")
-    if should_post:
-        next_time = update_next_post_time()
-        print(f"Next post time updated to: {next_time}")
+    print(f"Today's slot: {get_slot_for_day(dt.date.today())}")
+    print(f"Should post now: {should_post_now()}")

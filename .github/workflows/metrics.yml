@@ -1,0 +1,88 @@
+name: Collect Engagement Metrics
+
+# Evening refresh of the day's post stats (~12h after the 10:00 post).
+# NOTE: the daily posting run already collects the PREVIOUS post's stats before
+# crafting, so this is just an extra evening data point — it deliberately does
+# NOT run at 05:00 UTC to avoid colliding with the 10:00 PKT posting job.
+
+on:
+  schedule:
+    - cron: '0 17 * * *'  # 22:00 PKT — refresh today's post (~12h after posting)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linkedin-metrics
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    env:
+      AI_LINKED_INSECRETS: ${{ secrets.AI_LINKED_INSECRETS }}
+      HEADLESS: true
+
+    steps:
+      - name: Checkout latest main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: python -m playwright install --with-deps chromium
+
+      - name: Load packed secrets
+        if: ${{ env.AI_LINKED_INSECRETS != '' }}
+        run: |
+          python - <<'PY'
+          import os, json, sys
+          data = os.environ.get("AI_LINKED_INSECRETS")
+          if not data:
+              print("AI_LINKED_INSECRETS secret is not set.", file=sys.stderr)
+              sys.exit(1)
+          try:
+              j = json.loads(data)
+          except Exception as e:
+              print(f"Invalid JSON in AI_LINKED_INSECRETS: {e}", file=sys.stderr)
+              sys.exit(1)
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              for k, v in j.items():
+                  print(f"{k}={v}", file=f)
+          PY
+
+      - name: Collect engagement metrics
+        env:
+          LINKEDIN_STORAGE_ONLY: "true"
+          LINKEDIN_STORAGE_B64: ${{ secrets.LINKEDIN_STORAGE_B64 }}
+          HEADLESS: "true"
+          LOG_LEVEL_CONSOLE: "INFO"
+        run: python run.py --collect-metrics
+
+      - name: Commit engagement data (if any)
+        if: always()
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          for f in agent/agent_storage.db agent/metrics_history.json; do
+            [ -f "$f" ] && git add "$f"
+          done
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(metrics): update engagement data"
+            git pull --rebase origin main || true
+            git push
+          else
+            echo "No engagement changes to commit."
+          fi

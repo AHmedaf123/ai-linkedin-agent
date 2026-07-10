@@ -23,47 +23,52 @@ FALLBACK_MODELS = [
 ]
 
 ENHANCED_PROMPT_CONSTRAINTS = """
-Write a LinkedIn post that shares fascinating AI breakthroughs and capabilities.
+You are a working AI/ML engineer who builds real LLM-powered products and agents.
+You are writing a short LinkedIn post that teaches ONE practical thing.
 
-CRITICAL RULES:
-- Length: 150-220 words total, under 1,300 characters
-- Tone: Authoritative yet approachable — you're a postgraduate-level AI researcher
-- Voice: First-person is allowed (you are a postgraduate researcher commenting as an informed practitioner)
-- NO formatting symbols (* - > etc.) in the body
-- NO section labels (Hook, Context, CTA, etc.) in the body
-- NO bullet points or numbered lists in the body
-- NO bold, italic, or markdown formatting
+WHO YOU ARE WRITING FOR AND ABOUT:
+- Teach one specific thing that a junior engineer usually does NOT know, but that an
+  associate/mid-level engineer knows well from real work. Examples of the *kind* of thing:
+  a gotcha with LLM rate limits and retries, a cheaper way to use an API, a prompt pattern
+  that actually changes behavior, a RAG mistake that only shows up at scale, how you keep
+  the context window small in production, a tool-use detail, an error you had to debug.
+- Make it feel earned from real building, not read from a tutorial.
 
-SPECIFIC CONTENT REQUIREMENTS (MUST INCLUDE):
-- AT LEAST 1 specific number, percentage, metric, or version number
-- AT LEAST 1 concrete example: researcher name, company, institution, paper, or dataset
-- AT LEAST 1 real achievement or measurable result
-- Focus on AI capabilities and technical implications
+HOW TO WRITE IT (this is the most important part — write like a real human, not an AI):
+- Write it as a small personal story or observation. Something like: here is a situation I
+  hit, here is what confused me or what a junior on my team got wrong, here is what I
+  understood after. Keep it grounded in a real moment.
+- First person. Simple, direct English. It is completely fine to sound like a non-native
+  English speaker from Pakistan — short and plain sentences, not fancy vocabulary. Do NOT
+  over-polish it into perfect native "corporate LinkedIn" English.
+- Length: 90-180 words. Under 1,300 characters.
 
-CONTENT FOCUS - Share insights about:
-- Recent breakthroughs: "In 2024, researchers at [institution] achieved..."
-- Capabilities: "AI is now capable of..."
-- Real impact: "This technology helped reduce/increase [metric] by [percentage]"
-- Trends and comparisons to prior methods
+HARD BANS (these are the tells that make writing look AI-generated — never do them):
+- No emojis. No bullet points, no numbered lists, no markdown, no bold, no section labels.
+- No "rule of three" lists inside sentences (do not stack three adjectives or three items
+  for rhythm).
+- No hype words: game-changer, revolutionary, cutting-edge, unlock, supercharge, seamless,
+  robust, leverage, delve, realm, landscape, tapestry, powerful, elevate, harness.
+- No filler openers: "In today's world", "In the world of", "In the fast-paced world of",
+  "ever-evolving", "Here's the thing", "Here's how", "Let's dive in", "Picture this".
+- No dramatic one-line hook and no attention-grabbing question as the first line. Start like
+  a person already in the middle of a thought.
+- No forced "not just X, it's Y" contrast. No fake statistics. Do not invent numbers.
 
-BANNED GENERIC PHRASES (do NOT use ANY of these):
-- "evolving rapidly" / "rapidly evolving"
-- "exciting advances" / "exciting developments"
-- "start small, measure impact, iterate"
+WHAT GOOD LOOKS LIKE:
+- Anchor it with one concrete detail: a real tool or API, an actual error message, a real
+  number ONLY if it is natural and true. One concrete detail is enough — do not stuff facts.
+- End plainly. A small honest reflection, or a simple real question. Not a corporate
+  call-to-action, not "What do you think? Comment below".
 
-REQUIRED STRUCTURE:
-- Start with a specific fact or recent breakthrough
-- Share concrete details: who, what, when, results, metrics
-- Explain the real-world impact or capability
-- End with a thought-provoking question about implications
-- Add 3-5 hashtags ONLY at the very end, separated by a blank line
+VARIATION:
+- If a regeneration hint is present in the CONTEXT, change the angle and the opening, and do
+  not repeat earlier wording or earlier openings.
 
-VARIATION INSTRUCTIONS:
-- If provided a regeneration hint (in the CONTEXT argument), use it to change the angle (methodology, dataset, applications, limitations) and avoid repeating prior wording.
-
-Think: You are an Artificial Intelligence postgraduate from COMSATS University Islamabad sharing clear, technical insights about AI.
+Remember: the goal is that a real engineer reading this thinks "yeah, a person who actually
+builds things wrote this", not "an AI wrote this".
 """
-SEO_TARGET = int(os.getenv("SEO_TARGET", "80"))
+SEO_TARGET = int(os.getenv("SEO_TARGET", "62"))
 
 class LLMGenerator:
     @staticmethod
@@ -129,51 +134,55 @@ class LLMGenerator:
         
         return title, body, hashtags[:6]
 
+    # AI-tell phrases and hype words that make writing look machine-generated.
+    # These are enforced at generation time (in the prompt) and re-checked here.
+    AI_TELL_PHRASES = [
+        "in today's world", "in the world of", "in the fast-paced world",
+        "ever-evolving", "rapidly evolving", "evolving rapidly",
+        "here's the thing", "let's dive in", "let's dive into", "dive deep",
+        "picture this", "buckle up", "game-changer", "game changer",
+        "revolutionary", "cutting-edge", "cutting edge", "supercharge",
+        "unlock the power", "seamless", "seamlessly", "leverage",
+        "delve", "realm", "tapestry", "landscape of", "elevate your",
+        "harness the power", "at the end of the day", "needle in a haystack",
+        "when it comes to", "the beauty of", "look what ai can do",
+        "start small, measure impact, iterate", "comment below",
+        "what do you think? let me know",
+    ]
+
     @staticmethod
     def _validate_content_specificity(body: str) -> Tuple[bool, List[str]]:
-        """Validate post has specific, actionable content with real educational value."""
+        """Validate the post reads like a human engineer, not an AI.
+
+        Story-style posts are allowed to have no hard metrics, so we do NOT block
+        on missing numbers. We block on AI tells, hype words, and formatting that
+        the humanized prompt explicitly forbids.
+        """
         issues = []
-        
-        # Check for numbers/metrics/data points
-        import re
-        numbers = re.findall(r'\d+\.?\d*%|\d+x|\d+\.\d+|\d{2,}', body)
-        if len(numbers) < 1:
-            issues.append(f"Only {len(numbers)} numbers/metrics found (need 1+ for specificity)")
-        
-        # Check for banned generic phrases
-        banned_phrases = [
-            "evolving rapidly", "rapidly evolving",
-            "exciting advances", "exciting developments",
-            "balance innovation with pragmatic implementation",
-            "start small, measure impact, iterate",
-            "new applications emerging",
-            "making theoretical concepts practical",
-            "making once-theoretical concepts practical",
-            "practical and accessible"
-        ]
-        found_banned = []
-        for phrase in banned_phrases:
-            if phrase.lower() in body.lower():
-                found_banned.append(phrase)
-        if found_banned:
-            issues.append(f"Contains banned generic phrases: {', '.join(found_banned)}")
-        
-        # Check for actionable/technical verbs (warning only, not blocking)
-        actionable_verbs = [
-            'built', 'implemented', 'tested', 'discovered', 'measured', 
-            'achieved', 'reduced', 'increased', 'optimized', 'deployed',
-            'trained', 'fine-tuned', 'benchmarked', 'analyzed', 'developed'
-        ]
-        has_action = any(verb in body.lower() for verb in actionable_verbs)
-        if not has_action:
-            logger.info("Post has no actionable verbs, but this is not blocking")
-        
-        # Check for vague words that indicate generic content
-        vague_indicators = ['teams', 'space', 'field', 'key is', 'important']
-        vague_count = sum(1 for word in vague_indicators if word in body.lower())
-        if vague_count > 2:
-            issues.append(f"Too many vague/generic terms ({vague_count} found)")
-        
+        low = body.lower()
+
+        found_tells = [p for p in LLMGenerator.AI_TELL_PHRASES if p in low]
+        if found_tells:
+            issues.append(f"Contains AI-tell / hype phrases: {', '.join(found_tells[:6])}")
+
+        # Emojis are banned in the new style.
+        if re.search(r"[\U0001F300-\U0001FAFF☀-➿]", body):
+            issues.append("Contains emojis (banned in humanized style)")
+
+        # "Rule of three" comma triads like "fast, cheap, and reliable" are a strong AI tell.
+        triad = re.search(r"\b\w+,\s+\w+,\s+and\s+\w+\b", low)
+        if triad:
+            issues.append(f"Contains a rule-of-three list: '{triad.group(0)}'")
+
+        # Grounding: at least one concrete anchor (a tool/API name, code-ish token, or a
+        # natural number). This is a soft signal — a single concrete token is enough.
+        has_number = bool(re.search(r"\d", body))
+        has_techy_token = bool(re.search(
+            r"\b(api|llm|claude|gpt|token|prompt|rag|retry|rate limit|cache|context window|"
+            r"json|schema|endpoint|latency|embedding|vector|agent|tool call|timeout)\b", low))
+        if not (has_number or has_techy_token):
+            issues.append("No concrete technical anchor (tool/API/number) found")
+
         return len(issues) == 0, issues
 
     @staticmethod
@@ -190,31 +199,27 @@ class LLMGenerator:
         if readme:
             context_snippet = f"\n\nKey details from README:\n{readme[:300]}..."
         
-        user_prompt = f"""I came across an interesting project called {name} that showcases what AI can do in this space.
+        user_prompt = f"""I was looking at a project called {name} while building something similar.
 
-Project Overview:
+Project notes:
 - Name: {name}
 - Purpose: {desc}
 - Technology: {language}
-- Focus Areas: {', '.join(topics) if topics else 'AI and Machine Learning'}
+- Focus Areas: {', '.join(topics) if topics else 'AI and LLM engineering'}
 - Project Link: {url}
 {context_snippet}
 
-Write a LinkedIn post where you share:
-1. What this project demonstrates about AI capabilities
-2. The specific problem it solves and how (with metrics if available)
-3. Why this is significant for the field
-4. What this tells us about where AI is heading
+Write the post as a short personal observation from actually working with or studying this
+project: one practical engineering lesson you took from it that a junior would miss. Ground it
+in a real moment, not a feature list.
 
 {ENHANCED_PROMPT_CONSTRAINTS}
-
-Remember: Frame this as "Look what AI can do" not "I built this". You're an observer sharing an impressive development in the field.
 """
-        
+
         return [
             {
                 "role": "user",
-                "content": f"""SYSTEM INSTRUCTION: You are an Artificial Intelligence postgraduate from COMSATS University Islamabad. Speak as an informed AI researcher focusing on practical AI capabilities, methods, datasets, and measurable results.
+                "content": f"""SYSTEM INSTRUCTION: You are a hands-on AI/ML engineer who ships LLM-powered products. You write in simple, direct, first-person English (non-native is fine). You share real engineering lessons, never corporate hype.
 
 USER REQUEST:
 {user_prompt}"""
@@ -227,39 +232,25 @@ USER REQUEST:
         
         context_instruction = ""
         if context:
-            context_instruction = f"\n\nCONTEXT / SOURCE MATERIAL:\n{context}\n\nUse the above context as the primary source for facts, results, and metrics."
+            context_instruction = (
+                f"\n\nCONTEXT (your own past-post performance and/or source material — "
+                f"use it to pick the angle and to avoid repeating openings that already flopped):\n{context}"
+            )
 
-        user_prompt = f"""I want to write a LinkedIn post about {niche_topic} that showcases what's happening in this field and what AI is capable of.
+        user_prompt = f"""Write a short LinkedIn post about this area of AI/LLM engineering: {niche_topic}.{context_instruction}
 
-Topic: {niche_topic}{context_instruction}
-
-Write a LinkedIn post that shares:
-1. A specific recent breakthrough or capability in {niche_topic}
-   - Example: "In 2024, researchers at [Institution] used [approach] and achieved..."
-   - Or: "A new study in [Journal] showed that AI can now..."
-
-2. Concrete results and impact
-   - Include specific metrics, percentages, or improvements
-   - Show real-world applications or significance
-
-3. What this tells us about AI's capabilities
-   - How is AI helping in this field?
-   - What problems can it solve now that it couldn't before?
-   - How much faster/better/more efficient is it?
-
-4. Forward-looking insight
-   - What does this mean for the field?
-   - What possibilities does this open up?
+Do not "cover the topic". Instead, pick ONE small, specific, practical thing inside {niche_topic}
+that you learned the hard way while building — the kind of detail a junior engineer gets wrong and
+an associate-level engineer just knows. Tell it as a short real story or observation from your own
+work.
 
 {ENHANCED_PROMPT_CONSTRAINTS}
-
-Important: Frame this as "Look what AI can do" not "what I'm working on". You're sharing fascinating developments to educate your network about AI's capabilities.
 """
-        
+
         return [
             {
                 "role": "user",
-                "content": f"""SYSTEM INSTRUCTION: You are an Artificial Intelligence postgraduate from COMSATS University Islamabad. Speak as an informed AI researcher focusing on AI techniques, datasets, benchmarks, and real-world impact. If a regeneration hint is present in the CONTEXT, use it to vary the angle and avoid repeating prior wording.
+                "content": f"""SYSTEM INSTRUCTION: You are a hands-on AI/ML engineer who ships LLM-powered products (agents, RAG systems, API integrations). You write in simple, direct, first-person English (non-native speaker is fine and preferred over polished corporate English). You share real engineering lessons, never hype. If a regeneration hint is present in the CONTEXT, change the angle and the opening line.
 
 USER REQUEST:
 {user_prompt}"""
@@ -417,9 +408,13 @@ USER REQUEST:
             valid = LLMGenerator._validate_post_quality(body)
             if not valid:
                 if attempts < max_attempts:
-                    last_error = RuntimeError("Generated post failed quality validation; retrying with explicit metric requirement")
-                    # Add a stronger regeneration hint requesting numeric metrics and concrete examples
-                    regen_hint = "\n\nREGENERATE_HINT: Include at least one numeric metric or percentage (e.g., '25%', '2x', 'v1.2') and a concrete example (institution, paper, or dataset). Change phrasing and avoid prior wording."
+                    last_error = RuntimeError("Generated post failed quality validation; retrying humanized")
+                    # Regeneration hint aligned with the humanized style: drop AI tells and hype,
+                    # ground it in one real detail, change the opening line.
+                    regen_hint = ("\n\nREGENERATE_HINT: Rewrite as a plain first-person story from real work. "
+                                  "Remove any hype words, emojis, bullet points, and rule-of-three lists. "
+                                  "Ground it in one concrete detail (a real tool, an actual error, or a natural number). "
+                                  "Start with a different, non-hooky opening line and keep the English simple.")
                     messages = messages + [{"role": "system", "content": regen_hint}]
                     raw_text = None
                     continue

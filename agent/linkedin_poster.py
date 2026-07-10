@@ -102,13 +102,17 @@ class LinkedInPoster:
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
+        self._pw = None  # the sync_playwright() driver; must be .stop()'d on teardown
 
     # --- Browser lifecycle ---
     def _setup(self) -> None:
         try:
-            p = sync_playwright().start()
-            logger.info(f"Launching Chromium (headless={self.DEFAULT_BROWSER_ARGS['headless']})")
-            self.browser = p.chromium.launch(**self.DEFAULT_BROWSER_ARGS)
+            self._pw = sync_playwright().start()
+            # Read HEADLESS at launch time (not import time) so CI env always wins.
+            launch_args = dict(self.DEFAULT_BROWSER_ARGS)
+            launch_args["headless"] = os.getenv("HEADLESS", "false").lower() == "true"
+            logger.info(f"Launching Chromium (headless={launch_args['headless']})")
+            self.browser = self._pw.chromium.launch(**launch_args)
 
             # Reuse session if storage state exists
             context_args = dict(self.DEFAULT_CONTEXT_ARGS)
@@ -142,6 +146,19 @@ class LinkedInPoster:
                 self.browser.close()
         except (PlaywrightTimeoutError, OSError, IOError):
             pass
+        # Stop the Playwright driver so its event loop is released — otherwise a
+        # second sync_playwright() session in the same process (e.g. collect
+        # stats then post) fails with "Sync API inside the asyncio loop".
+        try:
+            if self._pw:
+                self._pw.stop()
+        except Exception:
+            pass
+        finally:
+            self._pw = None
+            self.context = None
+            self.browser = None
+            self.page = None
 
     # --- Navigation helpers ---
     def _dismiss_banners(self) -> None:
@@ -371,37 +388,74 @@ class LinkedInPoster:
             logger.warning(f"Failed to save storage state: {e}")
 
     # --- Posting ---
+    # Current LinkedIn composer editor (verified from live DOM).
+    EDITOR_SELECTOR = (
+        '.ql-editor[contenteditable="true"], '
+        '[data-test-ql-editor-contenteditable="true"], '
+        'div[role="textbox"][contenteditable="true"], '
+        'div[contenteditable="true"][aria-label="Text editor for creating content"], '
+        'div[contenteditable="true"][data-placeholder]'
+    )
+
+    def _wait_for_editor(self, timeout_ms: int = 10000) -> bool:
+        """Wait for the share-composer editor to be visible."""
+        assert self.page
+        try:
+            self.page.wait_for_selector(self.EDITOR_SELECTOR, timeout=timeout_ms, state="visible")
+            return True
+        except PlaywrightTimeoutError:
+            return False
+
     def _open_post_composer(self) -> None:
         assert self.page
-        composer_selectors = [
-            'button:has-text("Start a post")',
-            'button:has-text("Create a post")', 
-            'button:has-text("Share")',
-            'button:has-text("Post")',
-            'button[aria-label*="Start a post" i]',
-            'button[aria-label*="Create a post" i]',
-            'button[aria-label*="Share" i]',
-            'button.share-box-feed-entry__trigger',
-            'button[data-test-share-box-trigger]',
-            'button[aria-label*="post" i]',
-        ]
-        for selector in composer_selectors:
-            try:
-                button = self.page.locator(selector).first
-                if button.count() > 0 and button.is_visible():
-                    button.click(timeout=3000)
-                    _random_wait(500, 1000)
-                    return
-            except PlaywrightTimeoutError:
-                continue
+        self._dismiss_banners()
+
+        # Method 1: the share-composer URL opens the composer modal directly.
         try:
-            share_box = self.page.locator('.share-box-feed-entry, .share-creation-state, [data-test-share-box]').first
-            if share_box.count() > 0 and share_box.is_visible():
-                share_box.click(timeout=3000)
-                _random_wait(500, 1000)
+            self.page.goto("https://www.linkedin.com/feed/?shareActive=true",
+                           wait_until="domcontentloaded", timeout=30000)
+            _random_wait(1200, 2000)
+            self._dismiss_banners()
+            if self._wait_for_editor(9000):
+                logger.info("Composer opened via shareActive URL")
                 return
         except PlaywrightTimeoutError:
             pass
+
+        # Method 2: click the "Start a post" trigger. NOTE: it is an <a>/<div>
+        # (aria-label="Start a post"), NOT a <button>, so match by aria-label/anchor.
+        trigger_selectors = [
+            '[aria-label="Start a post"]',
+            'a[href*="preload/sharebox"]',
+            'a[href*="sharebox"]',
+            'button.share-box-feed-entry__trigger',
+            '.share-box-feed-entry__trigger',
+        ]
+        for selector in trigger_selectors:
+            try:
+                el = self.page.locator(selector).first
+                if el.count() == 0:
+                    continue
+                try:
+                    el.scroll_into_view_if_needed(timeout=3000)
+                except Exception:
+                    pass
+                el.click(timeout=4000, force=True)
+                if self._wait_for_editor(9000):
+                    logger.info(f"Composer opened via selector: {selector}")
+                    return
+            except Exception:
+                continue
+
+        # Method 3: plain text match as a last resort.
+        try:
+            self.page.get_by_text("Start a post", exact=True).first.click(timeout=4000, force=True)
+            if self._wait_for_editor(9000):
+                logger.info("Composer opened via text match")
+                return
+        except Exception:
+            pass
+
         _save_debug_info(self.page, "composer_button_error")
         raise LinkedInPostError("Could not open post composer - no suitable button found")
 

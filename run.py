@@ -9,17 +9,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Importing agent-specific modules
+from agent import storage
 from agent.backlog_generator import get_next_repo_post
 from agent.topic_picker import get_niche_post
 from agent.linkedin_poster import post_to_linkedin
 from agent.email_reporter import send_email_report
-from agent.scheduler import should_post_now, update_next_post_time
+from agent.when_gate import should_post_now, update_next_post_time
 from agent.github_signals import fetch_recent_github_activity
 from agent.deduper import check_and_save_post
 from agent.logging_setup import setup_logging, get_logger
 from agent.metrics import get_metrics_tracker
-from agent.content_strategy import get_next_content_strategy, save_topic_history
+from agent.content_strategy import get_next_content_strategy, save_topic_history, load_niches_list
 from agent.engagement_tracker import fetch_linkedin_engagement, get_engagement_stats
+from agent.performance_digest import build_performance_digest, is_similar_to_low_performers
 from agent.self_healer import handle_error, process_retry_queue, check_system_health, retry_with_backoff
 
 # --- Global Configuration and Logger Setup ---
@@ -83,6 +85,27 @@ def handled_operation(error_phase: str, send_report: bool = True, retry: bool = 
     return decorator
 
 # --- Helper Functions (can remain outside the class if general purpose) ---
+def materialize_linkedin_session() -> None:
+    """Write linkedin_storage.json from the LINKEDIN_STORAGE_B64 secret (CI).
+
+    GitHub Actions can't do an interactive login, so the session captured locally
+    (via scripts/capture_session.py) is base64-encoded into a secret and decoded
+    here at startup. No-op when the secret is absent (local runs use the real file).
+    """
+    import base64
+    b64 = os.getenv("LINKEDIN_STORAGE_B64")
+    if not b64:
+        return
+    path = os.getenv("LINKEDIN_STORAGE_STATE", "linkedin_storage.json")
+    try:
+        data = base64.b64decode(b64.strip())
+        with open(path, "wb") as f:
+            f.write(data)
+        logger.info(f"Materialized LinkedIn session from LINKEDIN_STORAGE_B64 -> {path} ({len(data)} bytes)")
+    except Exception as e:
+        logger.error(f"Failed to decode LINKEDIN_STORAGE_B64: {e}")
+
+
 def set_github_output(name: str, value: str) -> None:
     """Set an output variable for GitHub Actions"""
     if os.environ.get("GITHUB_OUTPUT"):
@@ -118,6 +141,8 @@ class LinkedInAgent:
         self.metrics = get_metrics_tracker("linkedin_agent_metrics.json")
         self.posted = False
         self.enable_post = not self.dry_run and os.getenv("ENABLE_POST", "true").lower() == "true"
+        self._digest = ""  # performance digest injected into generation prompts
+        storage.init_db()
         
         self.metrics.record_event("workflow_start")
         self.metrics.start_timer("total_execution")
@@ -156,10 +181,77 @@ class LinkedInAgent:
         self.metrics.record_event("github_activity_fetch", activity_counts)
         return activity
 
+    @timed_operation("previous_stats_collection")
+    @handled_operation("Previous post stats collection") # Non-critical, continue if fails
+    def _collect_previous_post_stats(self) -> None:
+        """Scrape the latest engagement for the PREVIOUS post before crafting a new one.
+
+        This makes the posting run self-contained: extract the last post's stats,
+        then use that fresh data to pick the next topic and craft the post. Skipped
+        on the very first run (no previous post) and in dry-run by default.
+        """
+        if os.getenv("COLLECT_STATS_BEFORE_POST", "true").lower() != "true":
+            return
+        if self.dry_run and os.getenv("COLLECT_STATS_IN_DRY_RUN", "false").lower() != "true":
+            self.logger.info("Dry-run: skipping live stats collection for previous post",
+                             extra={"event": "prev_stats_skip_dryrun"})
+            return
+
+        previous = storage.get_recent_posts(1)
+        if not previous:
+            self.logger.info("No previous post yet — skipping stats collection (first run)",
+                             extra={"event": "prev_stats_skip_firstrun"})
+            return
+
+        linkedin_email = os.getenv("LINKEDIN_EMAIL") or os.getenv("LINKEDIN_USER")
+        linkedin_password = os.getenv("LINKEDIN_PASSWORD") or os.getenv("LINKEDIN_PASS")
+        if not (linkedin_email and linkedin_password) and not os.path.exists(
+                os.getenv("LINKEDIN_STORAGE_STATE", "linkedin_storage.json")):
+            self.logger.info("No LinkedIn creds/session — skipping previous-post stats",
+                             extra={"event": "prev_stats_skip_nocreds"})
+            return
+
+        with open("agent/config.json", "r") as f:
+            profile_url = json.load(f).get("user", {}).get("linkedin_profile_url")
+
+        prev_topic = previous[0].get("topic")
+        self.logger.info(f"Collecting latest stats for previous post: {prev_topic!r}",
+                         extra={"event": "prev_stats_collect_start", "topic": prev_topic})
+        results = fetch_linkedin_engagement(
+            linkedin_email, linkedin_password,
+            max_posts=int(os.getenv("METRICS_MAX_POSTS", "1")),
+            linkedin_profile_url=profile_url,
+        )
+        refreshed = storage.get_recent_posts(1)
+        s = refreshed[0] if refreshed else {}
+        self.logger.info(
+            f"Previous post stats now: likes={s.get('likes')} comments={s.get('comments')} "
+            f"impressions={s.get('impressions')}",
+            extra={"event": "prev_stats_collected", "topic": prev_topic,
+                   "likes": s.get("likes"), "impressions": s.get("impressions"),
+                   "scraped": len(results)}
+        )
+        self.metrics.record_event("prev_stats_collected", {
+            "topic": prev_topic, "likes": s.get("likes"),
+            "comments": s.get("comments"), "impressions": s.get("impressions")})
+
     @timed_operation("engagement_fetch")
     @handled_operation("Engagement fetch") # Non-critical error, continue if fails
     def _fetch_linkedin_engagement(self) -> dict | None:
-        """Fetches LinkedIn engagement metrics."""
+        """Fetches LinkedIn engagement metrics.
+
+        Disabled during posting runs by default: metrics are collected by the
+        dedicated T+24h job (`run.py --collect-metrics`), and stats used for
+        generation come straight from storage. Set ENGAGEMENT_FETCH_ON_POST=true
+        to also scrape live during posting runs.
+        """
+        if os.getenv("ENGAGEMENT_FETCH_ON_POST", "false").lower() != "true":
+            stats = get_engagement_stats()
+            self.logger.info("Using stored engagement stats (live fetch disabled for posting runs)",
+                             extra={"event": "engagement_fetch_from_storage",
+                                    "measured_posts": stats.get("total_posts", 0)})
+            return stats
+
         linkedin_email = os.getenv("LINKEDIN_EMAIL") or os.getenv("LINKEDIN_USER")
         linkedin_password = os.getenv("LINKEDIN_PASSWORD") or os.getenv("LINKEDIN_PASS")
         
@@ -309,14 +401,15 @@ class LinkedInAgent:
             if new_source == "repo":
                 # Add regeneration hint to force a different angle and higher creativity
                 regen_hint = f"REGENERATE_HINT: Vary the angle, focus on methodology, dataset, or applications; avoid repeating previous phrasing. ATTEMPT={regeneration_count}"
-                post = get_next_repo_post(skip_current=True, context=new_strategy.get("context", "") + "\n\n" + regen_hint)
+                post = get_next_repo_post(skip_current=True, context="\n\n".join(
+                    filter(None, [self._digest, new_strategy.get("context", ""), regen_hint])))
             elif new_source in ["niche", "calendar", "trending", "fallback"]:
                 regen_hint = f"REGENERATE_HINT: Vary the angle, focus on methodology, dataset, or applications; avoid repeating previous phrasing. ATTEMPT={regeneration_count}"
                 post = get_niche_post(
-                    topic=new_strategy.get("topic", None), 
+                    topic=new_strategy.get("topic", None),
                     template=new_strategy.get("template", None),
                     force_template_rotation=True, # Ensure a fresh template if possible
-                    context=(new_strategy.get("context", "") or "") + "\n\n" + regen_hint
+                    context="\n\n".join(filter(None, [self._digest, new_strategy.get("context", "") or "", regen_hint]))
                 )
             else:
                 # Fallback to niche topic with different template as last resort
@@ -325,32 +418,48 @@ class LinkedInAgent:
         except Exception as e:
             self.logger.error(f"Error generating post content during regeneration: {str(e)}")
             post = None
-        
+
         if not post:
             self.logger.warning(f"Regeneration failed: Could not generate content for source {new_source}")
             return None
-            
+
+        self._attach_strategy_meta(post, new_strategy)
         return post
+
+    @staticmethod
+    def _attach_strategy_meta(post: dict, strategy: dict) -> None:
+        """Stamp topic/source/template_id onto a post so publish can persist them."""
+        post["topic"] = post.get("primary_topic") or strategy.get("topic")
+        post["source"] = strategy.get("source", "niche")
+        post["template_id"] = post.get("post_type") or strategy.get("template_id") or strategy.get("source", "default")
 
     @timed_operation("content_generation")
     @handled_operation("Content generation", send_report=True, retry=True, critical=True)
     def _generate_and_validate_post(self) -> dict:
         """Generates, deduplicates, and validates the post content."""
+        # Feedback loop: what worked / what flopped, injected into every prompt
+        self._digest = build_performance_digest()
+        if self._digest:
+            self.logger.info("Injecting performance digest into generation context",
+                             extra={"event": "performance_digest_injected",
+                                    "digest_length": len(self._digest)})
+            self.metrics.record_event("performance_digest_injected")
+
         content_strategy = get_next_content_strategy()
         post_source = content_strategy["source"]
-        
+
         self.logger.info(f"Using content strategy: {post_source}",
                          extra={"event": "content_strategy_selected", "source": post_source})
         self.metrics.record_event("content_strategy_selected", {"source": post_source})
 
         initial_post: dict
         if post_source == "repo":
-            initial_post = get_next_repo_post()
+            initial_post = get_next_repo_post(context=self._digest)
         elif post_source in ["niche", "calendar", "trending", "fallback"]:
             initial_post = get_niche_post(
-                topic=content_strategy["topic"], 
+                topic=content_strategy["topic"],
                 template=content_strategy["template"],
-                context=content_strategy.get("context", "")
+                context="\n\n".join(filter(None, [self._digest, content_strategy.get("context", "")]))
             )
         else:
             self.logger.warning(f"Unknown content strategy source: {post_source}, falling back to niche topic")
@@ -362,6 +471,7 @@ class LinkedInAgent:
             # This raising of error will be caught by the decorator and trigger retries or exit
             raise ValueError("Failed to generate valid initial post")
 
+        self._attach_strategy_meta(initial_post, content_strategy)
         current_post = initial_post
         regeneration_count = 0
         max_regeneration_attempts = int(os.getenv("MAX_REGENERATION_ATTEMPTS", "5"))
@@ -380,9 +490,32 @@ class LinkedInAgent:
                 self.metrics.record_event("post_uniqueness_failure", {"regeneration_attempts": regeneration_count})
                 break 
 
-        seo_threshold = int(os.getenv("MIN_SEO_SCORE", "80"))
+        # Feedback gate: reject drafts that open like historically low-performing posts
+        low_perf_attempts = 0
+        max_low_perf_attempts = int(os.getenv("MAX_LOW_PERFORMER_ATTEMPTS", "2"))
+        while low_perf_attempts < max_low_perf_attempts:
+            matches_low, low_score = is_similar_to_low_performers(current_post.get("body", ""))
+            if not matches_low:
+                break
+            self.logger.info(
+                f"Draft hook matches low-performer pattern (similarity {low_score:.2f}). Regenerating...",
+                extra={"event": "post_regeneration_low_performer", "similarity": low_score}
+            )
+            self.metrics.record_event("post_regeneration_low_performer", {"similarity": low_score})
+            regenerated = self._regenerate_post_content(
+                current_post, similar_post=None,
+                regeneration_count=regeneration_count + low_perf_attempts + 1
+            )
+            if not regenerated:
+                break
+            current_post = regenerated
+            low_perf_attempts += 1
+
+        # SEO is a light lint now (humanized style intentionally uses few hashtags
+        # and no emojis), so the gate is lenient — voice matters more than score.
+        seo_threshold = int(os.getenv("MIN_SEO_SCORE", "60"))
         low_seo_attempts = 0
-        max_low_seo_attempts = int(os.getenv("MAX_LOW_SEO_ATTEMPTS", "3"))
+        max_low_seo_attempts = int(os.getenv("MAX_LOW_SEO_ATTEMPTS", "2"))
 
         while current_post['seo_score'] < seo_threshold and low_seo_attempts < max_low_seo_attempts:
             self.logger.info(
@@ -438,22 +571,6 @@ class LinkedInAgent:
         
         return current_post
 
-    @timed_operation("backlog_save")
-    @handled_operation("Backlog save") # Non-critical error, continue if fails
-    def _save_to_backlog(self, post: dict) -> None:
-        """Saves the generated post to the content backlog."""
-        backlog_path = "content_backlog/backlog.json"
-        try:
-            # Intentionally not persisting backlog to disk to avoid storage-based duplication
-            self.logger.info(f"Backlog persistence disabled; post prepared: {post.get('title', 'Untitled')}",
-                             extra={"event": "backlog_save_disabled"})
-            self.metrics.record_event("backlog_save_disabled")
-        except Exception as e:
-            self.logger.error(f"Error saving to backlog: {str(e)}", 
-                              extra={"post_title": post.get("title", "N/A")})
-            # Re-raise to be caught by the decorator
-            raise
-
     @timed_operation("linkedin_posting")
     @handled_operation("LinkedIn posting", send_report=True, retry=True)
     def _publish_to_linkedin(self, post_content: str, post_data: dict) -> None:
@@ -465,6 +582,7 @@ class LinkedInAgent:
             self.metrics.record_event("linkedin_post_success")
             self._update_post_history(post_data)
             self.posted = True
+            self._post_first_comment(post_data)
         else:
             self.logger.info("Draft mode: post content prepared but not published",
                              extra={"event": "linkedin_post_draft"})
@@ -472,13 +590,32 @@ class LinkedInAgent:
             self.posted = True # Still consider successful for scheduling in draft mode
 
     def _update_post_history(self, post: dict) -> None:
-        """Appends the posted content to the post history file."""
-        # Post history persistence disabled to avoid storage
+        """Persists the published post (with topic/hook/template_id) to storage."""
         try:
-            self.logger.debug("Post history persistence disabled; recording in metrics only.", extra={"event": "post_history_disabled"})
-            self.metrics.record_event("post_history_disabled", {"title": post.get("title"), "length": len(post.get("body", ""))})
+            saved = storage.save_used_post(post)
+            self.logger.info(f"Post history saved to storage: {saved}",
+                             extra={"event": "post_history_saved", "new_record": saved,
+                                    "topic": post.get("topic"), "template_id": post.get("template_id")})
+            self.metrics.record_event("post_history_saved", {"title": post.get("title"),
+                                                             "length": len(post.get("body", ""))})
         except Exception:
-            self.logger.debug("Failed to record post history metric", exc_info=True)
+            self.logger.error("Failed to persist post history", exc_info=True)
+
+    def _post_first_comment(self, post: dict) -> None:
+        """First-comment strategy (opt-in): add one extra insight under our own post."""
+        if os.getenv("ENABLE_FIRST_COMMENT", "false").lower() != "true":
+            return
+        try:
+            from agent.growth_agent import run_first_comment
+            with open("agent/config.json", "r") as f:
+                profile_url = json.load(f).get("user", {}).get("linkedin_profile_url")
+            if not profile_url:
+                self.logger.warning("First-comment skipped: no linkedin_profile_url in config.json")
+                return
+            ok = run_first_comment(profile_url, post.get("body", ""))
+            self.metrics.record_event("first_comment", {"success": ok})
+        except Exception:
+            self.logger.error("First-comment step failed (non-critical)", exc_info=True)
 
     @timed_operation("email_report")
     @handled_operation("Email reporting", send_report=True, retry=True)
@@ -497,9 +634,14 @@ class LinkedInAgent:
             ]:
                 if os.path.exists(fname):
                     attachments.append(fname)
-        send_email_report(post, is_error=not self.posted, is_draft=not self.enable_post, attachments=attachments or None)
-        self.logger.info("Email report sent", extra={"event": "email_report_success", "posted": self.posted})
-        self.metrics.record_event("email_report_success", {"posted": self.posted})
+        sent = send_email_report(post, is_error=not self.posted, is_draft=not self.enable_post, attachments=attachments or None)
+        if sent:
+            self.logger.info("Email report sent", extra={"event": "email_report_success", "posted": self.posted})
+            self.metrics.record_event("email_report_success", {"posted": self.posted})
+        else:
+            self.logger.warning("Email report NOT sent (send returned False — check SMTP creds/quota)",
+                                extra={"event": "email_report_failed", "posted": self.posted})
+            self.metrics.record_event("email_report_failed", {"posted": self.posted})
 
     @timed_operation("schedule_update")
     @handled_operation("Schedule update", send_report=True, retry=True)
@@ -528,6 +670,11 @@ class LinkedInAgent:
 
             # 2. Fetch external data (can run concurrently if needed, but sequential here)
             github_activity = self._fetch_github_activity()
+
+            # 2b. Collect the PREVIOUS post's latest stats FIRST, so the digest that
+            #     drives topic choice + crafting is based on fresh engagement data.
+            self._collect_previous_post_stats()
+
             linkedin_engagement_stats = self._fetch_linkedin_engagement()
 
             # 3. Generate, deduplicate, and validate post content
@@ -536,16 +683,14 @@ class LinkedInAgent:
                 self.logger.error("Failed to generate and validate post, exiting workflow.", extra={"event": "workflow_exit_content_error"})
                 return False
 
-            # 4. Save to backlog (non-critical, continue if fails)
-            self._save_to_backlog(generated_post)
-
-            # 5. Publish to LinkedIn (critical for main objective)
+            # 4. Publish to LinkedIn (critical for main objective);
+            #    persists the post record + optional first comment on success
             self._publish_to_linkedin(generated_post["body"], generated_post)
 
-            # 6. Send email report (non-critical, continue if fails)
+            # 5. Send email report (non-critical, continue if fails)
             self._send_report_email(generated_post)
 
-            # 7. Update next post schedule (non-critical, continue if fails)
+            # 6. Update next post schedule (non-critical, continue if fails)
             if self.posted: # Only update schedule if a post was effectively made/drafted
                 self._update_next_post_schedule()
                 # Topic is now saved during content strategy selection in get_next_topic_strategy()
@@ -587,7 +732,33 @@ def parse_arguments():
     parser.add_argument("--force", action="store_true", help="Force posting regardless of schedule")
     parser.add_argument("--process-retries", action="store_true", help="Process retry queue")
     parser.add_argument("--check-health", action="store_true", help="Check system health")
+    parser.add_argument("--collect-metrics", action="store_true",
+                        help="Scrape engagement (likes/comments/impressions) for recent posts and persist it")
+    parser.add_argument("--growth", action="store_true",
+                        help="Run a rate-limited growth session (niche comments + connection requests)")
     return parser.parse_args()
+
+
+def collect_metrics_cli() -> None:
+    """Scrape engagement for recent posts and store it (T+24h/T+48h job)."""
+    linkedin_email = os.getenv("LINKEDIN_EMAIL") or os.getenv("LINKEDIN_USER")
+    linkedin_password = os.getenv("LINKEDIN_PASSWORD") or os.getenv("LINKEDIN_PASS")
+    with open("agent/config.json", "r") as f:
+        profile_url = json.load(f).get("user", {}).get("linkedin_profile_url")
+
+    storage.init_db()
+    # Only the agent's own latest post(s) — not the whole profile feed.
+    results = fetch_linkedin_engagement(
+        linkedin_email, linkedin_password,
+        max_posts=int(os.getenv("METRICS_MAX_POSTS", "1")),
+        linkedin_profile_url=profile_url,
+    )
+    stats = get_engagement_stats()
+    logger.info(
+        f"Metrics collection done: scraped {len(results)} posts; "
+        f"{stats.get('total_posts', 0)} posts have stored engagement "
+        f"(avg {stats.get('avg_likes', 0):.1f} likes, {stats.get('avg_impressions', 0):.0f} impressions)"
+    )
 
 def main_cli():
     """
@@ -596,6 +767,7 @@ def main_cli():
     potentially initiating a posting workflow.
     """
     args = parse_arguments()
+    materialize_linkedin_session()  # decode LINKEDIN_STORAGE_B64 secret into the session file (CI)
     metrics = get_metrics_tracker("linkedin_agent_metrics.json") # CLI specific metrics tracker
 
     try:
@@ -612,6 +784,20 @@ def main_cli():
             logger.info(f"System health check complete: {health_status['status']}",
                          extra={"status": health_status['status']})
             metrics.record_event("health_check_cli", {"status": health_status['status']})
+            return
+
+        if args.collect_metrics:
+            logger.info("Collecting engagement metrics via CLI command.")
+            collect_metrics_cli()
+            metrics.record_event("metrics_collection_cli")
+            return
+
+        if args.growth:
+            logger.info("Running growth session via CLI command.")
+            from agent.growth_agent import run_growth
+            result = run_growth(load_niches_list())
+            logger.info(f"Growth session result: {result}")
+            metrics.record_event("growth_session_cli", result)
             return
 
         # Regular workflow execution

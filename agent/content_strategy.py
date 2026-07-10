@@ -6,6 +6,7 @@ import datetime
 import re
 import requests
 from typing import Dict, List, Any, Optional
+from agent import storage
 from agent.logging_setup import get_logger
 
 logger = get_logger("content_strategy")
@@ -161,12 +162,9 @@ def load_used_repos() -> List[str]:
 
 
 def load_engagement_metrics() -> Dict:
-    """Load engagement metrics from history."""
+    """Load engagement metrics from persistent storage."""
     try:
-        if os.path.exists(METRICS_HISTORY_PATH):
-            with open(METRICS_HISTORY_PATH, "r") as f:
-                return json.load(f)
-        return {"posts": []}
+        return {"posts": storage.get_posts_with_engagement(100)}
     except Exception as e:
         logger.error(f"Error loading engagement metrics: {str(e)}")
         return {"posts": []}
@@ -213,55 +211,115 @@ def fetch_trending_ai_topics() -> List[Dict]:
         return []
 
 
-def get_best_performing_template(engagement_metrics: Dict) -> Optional[Dict]:
-    """Determine best performing template based on engagement metrics."""
-    if not engagement_metrics or "posts" not in engagement_metrics or not engagement_metrics["posts"]:
+def get_best_performing_template(engagement_metrics: Dict = None) -> Optional[Dict]:
+    """Best performing template_id based on measured engagement (from storage)."""
+    try:
+        template_perf = storage.get_template_performance()
+        if not template_perf:
+            return None
+        best_id, best = max(template_perf.items(), key=lambda kv: kv[1]["avg_score"])
+        return {"template_id": best_id, "avg_engagement": best["avg_score"], "post_count": best["count"]}
+    except Exception as e:
+        logger.warning(f"Error computing best template: {str(e)}")
         return None
-    
-    template_performance = {}
-    
-    for post in engagement_metrics["posts"]:
-        template_id = post.get("template_id", 0)
-        engagement = post.get("engagement", {})
-        
-        total_engagement = (
-            engagement.get("likes", 0) * 1 +
-            engagement.get("comments", 0) * 3 +
-            engagement.get("shares", 0) * 5
-        )
-        
-        if template_id not in template_performance:
-            template_performance[template_id] = {
-                "total_engagement": 0,
-                "count": 0
-            }
-        
-        template_performance[template_id]["total_engagement"] += total_engagement
-        template_performance[template_id]["count"] += 1
-    
-    best_template_id = 0
-    best_avg_engagement = -1
-    
-    for template_id, performance in template_performance.items():
-        try:
-            avg_engagement = performance["total_engagement"] / performance["count"] if performance["count"] > 0 else 0
-        except Exception as e:
-            logger.warning(f"Error calculating average engagement: {str(e)}")
-            avg_engagement = 0
-        
-        if avg_engagement > best_avg_engagement:
-            best_avg_engagement = avg_engagement
-            best_template_id = template_id
-    
-    return {"template_id": best_template_id, "avg_engagement": best_avg_engagement}
+
+
+def pick_niche_epsilon_greedy(epsilon: float = None) -> str:
+    """Epsilon-greedy bandit over niches.
+
+    Exploit (1-epsilon): the niche with the best average measured engagement
+    that is not on cooldown. Explore (epsilon, or when no engagement data
+    exists yet): fall back to the round-robin rotation.
+    """
+    if epsilon is None:
+        epsilon = float(os.getenv("NICHE_BANDIT_EPSILON", "0.2"))
+
+    niches = load_niches_list()
+    if not niches:
+        return get_next_niche_round_robin()
+
+    try:
+        perf = storage.get_topic_performance()
+    except Exception as e:
+        logger.warning(f"Could not load topic performance: {e}")
+        perf = {}
+    measured = {t: v for t, v in perf.items() if t in set(niches)}
+
+    if measured and random.random() >= epsilon:
+        ranked = sorted(measured.items(), key=lambda kv: kv[1]["avg_score"], reverse=True)
+        for topic, stats in ranked:
+            if not is_topic_cooldown(topic):
+                logger.info(
+                    f"Niche bandit (exploit): {topic} "
+                    f"(avg engagement {stats['avg_score']:.1f} over {stats['count']} posts)"
+                )
+                save_topic_history(topic)
+                return topic
+        # every measured winner is on cooldown → explore instead
+
+    logger.info("Niche bandit (explore): round-robin rotation")
+    return get_next_niche_round_robin()
+
+
+def generate_performance_driven_topic() -> Optional[str]:
+    """Craft the next topic from what actually performed well — not a static pick.
+
+    Uses the bounded topic-generation context (top/bottom angles + best topics)
+    and the niche list as *seeds*, and asks the LLM to produce one specific,
+    narrow sub-topic biased toward what worked. Returns None when there is no
+    performance data yet or the LLM is unavailable (caller then falls back to the
+    bandit over the seed list).
+    """
+    try:
+        from agent.performance_digest import build_topic_generation_context
+        ctx = build_topic_generation_context()
+        if not ctx:
+            return None  # no measured performance yet — let the bandit seed instead
+
+        seeds = load_niches_list()
+        available = [n for n in seeds if not is_topic_cooldown(n)] or seeds
+        seed_block = "\n".join(f"- {s}" for s in available)
+
+        from agent.llm_generator import LLMGenerator
+        messages = [{
+            "role": "user",
+            "content": (
+                "You choose the next LinkedIn post topic for a hands-on AI/ML engineer.\n\n"
+                f"Broad seed areas you may draw from:\n{seed_block}\n\n"
+                f"{ctx}\n\n"
+                "Using ONLY what performed well above, choose or craft ONE specific, narrow "
+                "sub-topic for the next post. Lean toward the angles/topics that worked and "
+                "avoid the ones that flopped. It must be a concrete thing an engineer can tell "
+                "a real story about (not a broad area). Reply with just the topic line, under "
+                "12 words, no quotes, no trailing punctuation."
+            ),
+        }]
+        raw = LLMGenerator._call_openrouter(messages, max_tokens=40, temperature=0.7)
+        topic = raw.strip().splitlines()[0].strip().strip('"').strip()
+        topic = re.sub(r"[.#]+$", "", topic).strip()
+        if 3 <= len(topic) <= 120:
+            logger.info(f"Content strategy: performance-driven generated topic: {topic}")
+            save_topic_history(topic)
+            return topic
+    except Exception as e:
+        logger.warning(f"Performance-driven topic generation failed: {e}")
+    return None
 
 
 def get_next_topic_strategy() -> Dict:
-    """Determine next topic and template based on content strategy."""
+    """Determine next topic and template based on content strategy.
+
+    Priority:
+      1. Repo queue (if any)
+      2. Performance-driven generated topic (once there is engagement data)
+      3. Niche bandit over the seed list (exploit best niche, explore sometimes)
+      4. Trending ArXiv (opt-in only — off by default for the practical-eng niche)
+      5. Generic fallback
+    """
     try:
         repo_queue = load_repo_queue()
         config = load_config()
-        
+
         # 1. Repositories (Highest Priority)
         if repo_queue:
             logger.info("Content strategy: Using repository from queue")
@@ -269,20 +327,47 @@ def get_next_topic_strategy() -> Dict:
                 "source": "repo",
                 "topic": repo_queue[0],
                 "template": None,
+                "template_id": "repo",
                 "priority_score": 10
             }
-            
-        # 2. Trending Topics (30% chance OR if no niches)
-        # We increase chance to get more "news" style content
-        use_trending = random.random() < 0.3
-        
-        if use_trending:
+
+        # 2. Performance-driven generated topic (derived from past reach/reactions)
+        if os.getenv("ENABLE_DYNAMIC_TOPIC", "true").lower() == "true":
+            generated = generate_performance_driven_topic()
+            if generated:
+                return {
+                    "source": "niche",
+                    "topic": generated,
+                    "template": None,
+                    "template_id": "generated",
+                    "priority_score": 9
+                }
+
+        # 3. Niche Topics (epsilon-greedy bandit over measured engagement,
+        #    falling back to round-robin while there is no data)
+        niches = config.get("niches", [])
+        if niches:
+            try:
+                next_niche = pick_niche_epsilon_greedy()
+                logger.info("Content strategy: Using niche topic (bandit)")
+                return {
+                    "source": "niche",
+                    "topic": next_niche,
+                    "template": None,
+                    "template_id": "niche",
+                    "priority_score": 8
+                }
+            except Exception as e:
+                logger.error(f"Error getting niche topic: {str(e)}")
+
+        # 4. Trending ArXiv (opt-in: research-paper content clashes with the
+        #    practical-engineering niche, so it is disabled by default)
+        if os.getenv("ENABLE_TRENDING", "false").lower() == "true":
             try:
                 trending_topics = fetch_trending_ai_topics()
                 if trending_topics:
                     selection = random.choice(trending_topics)
                     topic = selection["topic"]
-                    # Save to history immediately when selected
                     save_topic_history(topic)
                     logger.info(f"Content strategy: Using trending AI topic: {topic}")
                     return {
@@ -290,55 +375,23 @@ def get_next_topic_strategy() -> Dict:
                         "topic": topic,
                         "context": selection.get("context", ""),
                         "template": None,
-                        "priority_score": 9
+                        "template_id": "trending",
+                        "priority_score": 7
                     }
             except Exception as e:
                 logger.error(f"Error checking trending topics: {e}")
 
-        # 3. Niche Topics (Standard Rotation)
-        # Note: get_next_niche_round_robin now saves to history internally
-        niches = config.get("niches", [])
-        if niches:
-            try:
-                next_niche = get_next_niche_round_robin()
-                logger.info("Content strategy: Using niche topic (round-robin)")
-                return {
-                    "source": "niche",
-                    "topic": next_niche,
-                    "template": None,
-                    "priority_score": 8
-                }
-            except Exception as e:
-                logger.error(f"Error getting niche topic: {str(e)}")
-        
-        # 4. Fallback: Trending (if we skipped it earlier but have no niches)
-        if not use_trending:
-             try:
-                trending_topics = fetch_trending_ai_topics()
-                if trending_topics:
-                    selection = random.choice(trending_topics)
-                    topic = selection["topic"]
-                    # Save to history immediately when selected
-                    save_topic_history(topic)
-                    return {
-                        "source": "trending",
-                        "topic": topic,
-                        "context": selection.get("context", ""),
-                        "priority_score": 7
-                    }
-             except Exception:
-                 pass
-        
     except Exception as e:
         logger.error(f"Critical error in content strategy: {str(e)}")
     
     logger.info("Content strategy: Using generic AI topic fallback")
-    fallback_topic = "Artificial Intelligence and Machine Learning"
+    fallback_topic = "Practical LLM Engineering"
     save_topic_history(fallback_topic)
     return {
         "source": "fallback",
         "topic": fallback_topic,
         "template": None,
+        "template_id": "fallback",
         "priority_score": 1
     }
 
@@ -358,7 +411,8 @@ def get_next_content_strategy():
         logger.error(f"Error in get_next_content_strategy: {str(e)}")
         return {
             "source": "fallback",
-            "topic": "Artificial Intelligence and Machine Learning",
+            "topic": "Practical LLM Engineering",
             "template": None,
+            "template_id": "fallback",
             "priority_score": 1
         }

@@ -50,5 +50,29 @@
   {
     "topic": "De Novo Drug Design",
     "timestamp": "2025-12-18T01:19:25.033129"
+  },
+  {
+    "topic": "Fine-tuning vs Prompting Trade-offs",
+    "timestamp": "2026-07-05T05:16:04.022134"
+  },
+  {
+    "topic": "Building Reliable AI Agents",
+    "timestamp": "2026-07-05T05:19:54.488527"
+  },
+  {
+    "topic": "Token Budgeting and Context Management",
+    "timestamp": "2026-07-05T05:33:18.366731"
+  },
+  {
+    "topic": "Mastering Token Budgeting for LLM Context Management",
+    "timestamp": "2026-07-06T02:11:19.522432"
+  },
+  {
+    "topic": "Token Budgeting Strategies for LLM-Powered Chatbots",
+    "timestamp": "2026-07-06T02:16:58.936143"
+  },
+  {
+    "topic": "Managing Token Limits in LLM Chatbot Development",
+    "timestamp": "2026-07-06T02:22:51.068205"
   }
 ]

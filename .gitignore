@@ -51,6 +51,7 @@ latest_post.json
 
 # Browser automation artifacts
 storage_state.json
+linkedin_storage.json
 *.png
 *.html
 playwright/
@@ -59,6 +60,12 @@ playwright/
 agent/errors.json
 # agent/state.json
 agent/retry_queue.json
+
+# SQLite side files (the main DB agent/agent_storage.db IS committed — it is
+# the persistent source of truth for dedup, cooldowns, and learning)
+agent/agent_storage.db-journal
+agent/agent_storage.db-wal
+agent/agent_storage.db-shm
 
 # Generated reports and dashboards
 dashboard/
@@ -84,3 +91,9 @@ content_backlog/used_posts.jsonl
 
 # Ensure requirements.txt is not ignored
 !requirements.txt
+
+# base64 session for the CI secret (do not commit)
+linkedin_storage.b64.txt
+
+# generated CI secret JSON (do not commit)
+ai_linked_insecrets.json

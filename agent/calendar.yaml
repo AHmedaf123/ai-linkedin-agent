@@ -1,190 +1,99 @@
 # LinkedIn Content Calendar
-# Defines the weekly content schedule for LinkedIn posts
+# Weekly seed topics for an AI/ML engineer sharing practical, hands-on lessons.
+# NOTE: templates here are only a last-resort scaffold. The main flow generates
+# humanized story-style posts via the LLM (see agent/llm_generator.py). These
+# body_templates are deliberately plain — no emojis, no bullet scaffolding.
 
 weekly_schedule:
-  # Monday: AI for Drug Discovery
+  # Monday: Agents & agentic workflows
   0:
-    primary_topic: "AI for Drug Discovery"
+    primary_topic: "Building Agentic Workflows with Claude"
     subtopics:
-      - "Protein Structure Prediction"
-      - "Drug-Target Interaction"
-      - "Molecular Generation"
-      - "Docking"
-      - "Binding Affinity Prediction"
-    post_type: "how-to"
-    series_length: 5
+      - "Tool use and function calling"
+      - "Multi-step agent loops"
+      - "When an agent should stop"
+      - "Giving agents memory"
+    post_type: "lesson"
+    series_length: 4
 
-  # Tuesday: AI Case Studies in Pharma & Healthcare
+  # Tuesday: LLM API implementation details
   1:
-    primary_topic: "AI Case Studies in Pharma & Healthcare"
+    primary_topic: "AI API Implementation Details"
     subtopics:
-      - "Molecular Generation"
-      - "QSAR"
-      - "ML-driven Simulations"
-      - "Clinical Trial Optimization with AI"
-    post_type: "case-study"
+      - "Handling rate limits and retries"
+      - "Cost optimization tricks"
+      - "Streaming and latency"
+      - "Structured output that does not break"
+    post_type: "lesson"
     series_length: 4
 
-  # Wednesday: MLOps for Scientific Computing
+  # Wednesday: RAG & retrieval
   2:
-    primary_topic: "MLOps for Scientific Computing"
+    primary_topic: "RAG Pipelines in Production"
     subtopics:
-      - "Model Versioning"
-      - "CI/ML"
-      - "Monitoring"
-      - "Feature Stores"
-      - "GPU Scaling"
-      - "Pipeline Optimization for Drug Discovery"
-    post_type: "tip"
-    series_length: 6
+      - "Chunking mistakes juniors make"
+      - "When retrieval hurts more than helps"
+      - "Evaluating retrieval quality"
+      - "Keeping context small"
+    post_type: "lesson"
+    series_length: 4
 
-  # Thursday: Explainable AI for Molecules
+  # Thursday: Prompt engineering
   3:
-    primary_topic: "Explainable AI for Molecules"
+    primary_topic: "Prompt Engineering Patterns Juniors Miss"
     subtopics:
-      - "SHAP"
-      - "LIME"
-      - "Feature Importance"
-      - "Counterfactual Explanations for Molecular Models"
-    post_type: "educational"
+      - "Why examples beat instructions"
+      - "Controlling output format"
+      - "Reducing hallucination"
+      - "Prompting for tool use"
+    post_type: "lesson"
     series_length: 4
 
-  # Friday: AI Tooling for Scientific Models
+  # Friday: Reliability & production patterns
   4:
-    primary_topic: "AI Tooling for Scientific Models"
+    primary_topic: "Production Patterns Tutorials Skip"
     subtopics:
-      - "PyTorch Geometric"
-      - "RDKit"
-      - "DeepChem"
-      - "OpenMM"
-      - "BioNeMo"
-      - "MLflow"
-      - "W&B"
-    post_type: "review"
-    series_length: 7
+      - "Error handling around AI APIs"
+      - "Evaluating LLM output automatically"
+      - "Caching to cut cost"
+      - "Debugging nondeterministic behavior"
+    post_type: "lesson"
+    series_length: 4
 
-  # Saturday: Personal AI Learning Journey
+  # Saturday: Personal engineering lessons
   5:
-    primary_topic: "Personal AI Learning Journey"
+    primary_topic: "Things I Learned Building AI Products"
     subtopics:
-      - "New Techniques"
-      - "Molecular Modeling Challenges"
-      - "Papers"
-      - "Resources for AI in Drug Design"
-    post_type: "reflection"
+      - "A bug that taught me something"
+      - "A tool that changed my workflow"
+      - "A mistake I kept repeating"
+      - "Something I wish I knew earlier"
+    post_type: "story"
     series_length: 4
 
-  # Sunday: Weekly AI-in-Drug-Discovery Recap
+  # Sunday: Model & tooling choices
   6:
-    primary_topic: "Weekly AI-in-Drug-Discovery Recap"
+    primary_topic: "Choosing Models and Tools"
     subtopics:
-      - "Research Highlights"
-      - "Industry Trends"
-      - "Open Source Updates"
-      - "Generative Model News"
-    post_type: "summary"
+      - "When to fine-tune vs prompt"
+      - "Picking the right model for the job"
+      - "Cost vs quality trade-offs"
+      - "Context window management"
+    post_type: "lesson"
     series_length: 4
 
-# Templates for different post types
+# Plain fallback scaffolds only (the LLM path is preferred and humanized).
 post_templates:
-  how-to:
-    title_template: "How to Use {topic} for {subtopic}"
+  lesson:
+    title_template: "{subtopic}"
     body_template: |
-      🔬 **How to Apply {topic} to {subtopic}** (Part {part}/{total}):
-      
-      Here's a practical approach I've found effective:
-      
-      1️⃣ Start with clear problem definition
-      2️⃣ Prepare your data carefully
-      3️⃣ Select appropriate models
-      4️⃣ Validate results rigorously
-      
-      What challenges have you faced in this area?
-      
+      Something about {subtopic} that took me a while to figure out.
+
       {hashtags}
 
-  case-study:
-    title_template: "{subtopic}: A Mini Case Study"
+  story:
+    title_template: "{subtopic}"
     body_template: |
-      📊 **{subtopic} Case Study** (Part {part}/{total}):
-      
-      🔍 **Challenge**: Implementing AI solutions in complex environments
-      🛠️ **Approach**: Iterative development with stakeholder feedback
-      📈 **Results**: Improved efficiency and novel insights
-      
-      The key lesson: start small, measure carefully, and scale gradually.
-      
-      {hashtags}
+      A short story about {subtopic} from my own work.
 
-  tip:
-    title_template: "MLOps Tip: Mastering {subtopic}"
-    body_template: |
-      💡 **MLOps Tip: {subtopic}** (Part {part}/{total}):
-      
-      One practice that's saved me countless hours:
-      
-      Always implement {subtopic} early in your ML project lifecycle. It's much harder to add later.
-      
-      My favorite tool for this: [relevant tool]
-      
-      What's your go-to approach?
-      
-      {hashtags}
-
-  educational:
-    title_template: "Understanding {subtopic} in AI Explainability"
-    body_template: |
-      🧠 **AI Explainability: {subtopic}** (Part {part}/{total}):
-      
-      Why it matters: Transparent AI builds trust and helps debug models.
-      
-      Key concept: {subtopic} helps us understand how models make decisions by [brief explanation].
-      
-      Implementation tip: [practical advice]
-      
-      {hashtags}
-
-  review:
-    title_template: "{subtopic}: Tool Review"
-    body_template: |
-      🛠️ **Tool Review: {subtopic}** (Part {part}/{total}):
-      
-      I've been using {subtopic} in my AI workflow and here's my take:
-      
-      ✅ Strengths: [key strengths]
-      ⚠️ Limitations: [main limitations]
-      💼 Best for: [ideal use cases]
-      
-      Have you tried it? What was your experience?
-      
-      {hashtags}
-
-  reflection:
-    title_template: "Learning Journey: {subtopic}"
-    body_template: |
-      📚 **Personal Learning: {subtopic}** (Part {part}/{total}):
-      
-      This week I've been exploring {subtopic} and wanted to share some insights:
-      
-      🔑 Key takeaway: [main insight]
-      📖 Resource I found helpful: [resource]
-      🤔 Question I'm still exploring: [question]
-      
-      What are you learning about lately?
-      
-      {hashtags}
-
-  summary:
-    title_template: "Weekly AI Recap: {subtopic}"
-    body_template: |
-      🗓️ **Weekly Recap: {subtopic}** (Part {part}/{total}):
-      
-      This week's highlights in AI:
-      
-      1️⃣ [Key development 1]
-      2️⃣ [Key development 2]
-      3️⃣ [Key development 3]
-      
-      What caught your attention in AI this week?
-      
       {hashtags}

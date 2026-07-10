@@ -4,13 +4,13 @@
     "smtp_server": "smtp.gmail.com"
   },
   "niches": [
-    "Drug Discovery AI",
-    "Structure-Based Drug Design (SBDD)",
-    "Bioinformatics",
-    "Artifcial Intelligence for Drug Discovery",
-    "AI Generated Drugs in clinial trails",
-    "Future of drug discovery with AI",
-    "Future of AI generater Drugs"
+    "Building Agentic Workflows with Claude",
+    "LLM API Cost Optimization",
+    "Prompt Engineering Patterns Juniors Miss",
+    "RAG Pipeline Mistakes at Scale",
+    "Context Window Management in Production",
+    "Structured Output and Tool Use with LLMs",
+    "Building Reliable AI Agents"
   ],
   "posting": {
     "start_time": "11:00",
@@ -19,8 +19,8 @@
   },
   "user": {
     "name": "Muhammad Ahmed",
-    "persona": "AI & Bioinformatics Researcher | Building Generative Models for Drug Discovery",
-    "voice": "Professional but approachable | Insight-driven | AI-focused",
+    "persona": "AI/ML Engineer | Building real LLM-powered products and agents",
+    "voice": "Practical builder | First-person real experience | Simple, direct, non-native English | No corporate hype",
     "linkedin_profile_url": "https://www.linkedin.com/in/muhammad-ahmed-afzal/"
   }
 }

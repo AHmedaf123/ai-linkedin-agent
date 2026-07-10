@@ -2,11 +2,17 @@ name: Daily LinkedIn Post
 
 on:
   schedule:
-    # Pakistan Time = UTC+5
-    # 12:00 AM PKT = 19:00 UTC (previous day)
-    # 12:00 PM PKT = 07:00 UTC
-    - cron: '0 19 * * *'
+    # 10:00 AM Pakistan Time (PKT = UTC+5) => 05:00 UTC.
+    # NOTE: GitHub cron is best-effort and can fire a bit late under load; the
+    # posting window in config.yaml (time_window_end) absorbs that delay, and
+    # when_gate's once-per-day guard prevents a double post.
+    - cron: '0 5 * * *'   # 10:00 PKT
   workflow_dispatch: # Allow manual run
+    inputs:
+      force:
+        description: "Force posting regardless of schedule"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -102,13 +108,16 @@ jobs:
           LOG_LEVEL_CONSOLE: "INFO"
           LOG_LEVEL_FILE: "DEBUG"
           ENABLE_POST: "true"
+          ENABLE_FIRST_COMMENT: ${{ vars.ENABLE_FIRST_COMMENT || 'false' }}
         run: |
-          RUN_ARGS="--force"
+          RUN_ARGS=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+            echo "Manual run with force enabled."
+            RUN_ARGS="--force"
+          fi
           if [ "$ENABLE_POST" != "true" ]; then
             echo "Running in dry-run mode because ENABLE_POST is not 'true'"
             RUN_ARGS="$RUN_ARGS --dry-run"
-          else
-            echo "ENABLE_POST is 'true', attempting to post."
           fi
           python run.py $RUN_ARGS
 
@@ -127,19 +136,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 5
 
-      # --- Commit state changes (if any) ---
+      # --- Persist state (DB + JSON) so dedup/cooldown/learning survive runs ---
       - name: Commit state changes (if any)
+        if: always()
         run: |
-          if [ -f agent/state.json ]; then
-            git config --local user.email "github-actions[bot]@users.noreply.github.com"
-            git config --local user.name "github-actions[bot]"
-            git add agent/state.json
-            if ! git diff --cached --quiet; then
-              git commit -m "chore(schedule): update state"
-              git push
-            else
-              echo "No state changes to commit."
-            fi
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          for f in agent/agent_storage.db agent/state.json agent/topic_history.json \
+                   agent/niche_index.json agent/repo_queue.json agent/used_repos.json \
+                   agent/metrics_history.json; do
+            [ -f "$f" ] && git add "$f"
+          done
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(state): persist agent state after posting run"
+            git pull --rebase origin main || true
+            git push
           else
-            echo "No agent/state.json found; skipping commit."
+            echo "No state changes to commit."
           fi

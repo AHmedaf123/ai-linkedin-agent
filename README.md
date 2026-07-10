@@ -4,18 +4,18 @@ Automates creation and posting of short, scannable, SEO-optimized LinkedIn conte
 
 ## Features
 
-- **Automated scheduling**: Posts on a configurable schedule with optional force mode
-- **Smart content strategy**: Chooses between repo posts, calendar topics, niche list, trending (ArXiv), or a safe fallback
-- **LLM-powered generation**: Uses OpenRouter (DeepSeek R1) with strict style/length constraints
-- **Repo integration**: Pulls README preview and metadata for context-rich repo posts
-- **Niche posts**: Calendar-aware topics with template rotation and LLM fallback
-- **SEO optimization**: Scores and optimizes content; can regenerate on low scores
-- **Deduplication**: Detects similar posts and regenerates with a different strategy
-- **LinkedIn automation**: Posts using a headless browser (Playwright)
-- **Metrics + dashboard**: Structured metrics, JSON logs, and a dashboard generator
-- **Email reports**: Sends summary emails with SEO and engagement context
-- **Self-healing & retries**: Error handling, retry queue processing, and health checks
-- **CLI controls**: `--dry-run`, `--force`, `--process-retries`, `--check-health`
+- **Persistent memory (single source of truth)**: One SQLite store (`agent/agent_storage.db`) holds every published post — hash, topic, hook, hashtags, template_id, posted_at — plus its later engagement (likes/comments/impressions). Dedup, cooldowns, and learning all read from this one place, and CI commits it back so state survives runs.
+- **Real deduplication**: Full-body TF-IDF similarity against the last 30 published posts **and** a hook (first-sentence) similarity check against the last 10 — so repeated openings get rejected, not just repeated bodies.
+- **Feedback loop (learning)**: Before each post, a performance digest of your best/worst past posts is injected into the generation prompt; drafts that open like historically low-performing posts are regenerated.
+- **Bandit topic selection**: Epsilon-greedy over niches — mostly exploit the best-performing topic by measured engagement, sometimes explore — falling back to round-robin while there's no data yet.
+- **Engagement collection**: A separate scheduled job scrapes likes/comments/**impressions** at ~T+24h/T+48h (Playwright, same browser stack as posting) and joins them back to the stored post.
+- **Smart content strategy**: Repo posts → trending (ArXiv) → bandit niche → safe fallback.
+- **LLM-powered generation**: OpenRouter with strict style/length constraints and specificity checks.
+- **Slot-based scheduling**: Rotates through `candidate_times` so different posting times can be A/B-tested; posts at most once per day.
+- **Growth engine (opt-in)**: First-comment on your own post, LLM-generated niche comments, and connection requests — all rate-limited with human-like pacing.
+- **LinkedIn automation**: Playwright only (Selenium removed).
+- **Metrics, email reports, self-healing, health checks**.
+- **CLI controls**: `--dry-run`, `--force`, `--process-retries`, `--check-health`, `--collect-metrics`, `--growth`
 
 ## How it works
 
@@ -40,31 +40,45 @@ Automates creation and posting of short, scannable, SEO-optimized LinkedIn conte
 ```
 ai-linkedin-agent/
 ├── run.py                     # Main orchestrator & CLI entry point
-├── post_topic.py              # One-off niche post generator/poster
 ├── agent/
-│   ├── content_strategy.py    # Chooses next content source/topic/template
+│   ├── storage.py             # SQLite single source of truth (posts, engagement, state, counters)
+│   ├── content_strategy.py    # Content source + epsilon-greedy bandit niche picker
+│   ├── performance_digest.py  # Turns engagement history into prompt context + low-performer gate
 │   ├── backlog_generator.py   # Repo queue, GitHub fetch, repo post generation
 │   ├── topic_picker.py        # Niche topic generator (calendar + templates)
 │   ├── llm_generator.py       # OpenRouter prompts, cleaning, SEO pipeline
 │   ├── seo_optimizer.py       # SEO scoring/keywording helpers
 │   ├── linkedin_poster.py     # Playwright posting to LinkedIn
-│   ├── scheduler.py           # Time gates; updates next posting time
-│   ├── deduper.py             # Similarity check & uniqueness enforcement
-│   ├── engagement_tracker.py  # LinkedIn engagement and stats
+│   ├── engagement_tracker.py  # Playwright engagement/impressions scraper (T+24h/T+48h)
+│   ├── growth_agent.py        # First-comment, niche comments, connections (opt-in, rate-limited)
+│   ├── when_gate.py           # Slot-based posting gate (replaces old scheduler.py)
+│   ├── deduper.py             # Body + hook similarity against persistent history
 │   ├── email_reporter.py      # Email summary sender
 │   ├── logging_setup.py       # Structured logging
 │   ├── metrics.py             # Metrics tracker
 │   ├── github_signals.py      # GitHub activity signals
 │   ├── calendar.yaml          # Weekday content plan & templates
-│   ├── config.yaml            # Identity, niches, posting settings
+│   ├── config.yaml            # Identity, niches, posting settings (start_time, candidate_times)
+│   ├── config.json            # user.linkedin_profile_url, SMTP defaults
+│   ├── agent_storage.db       # Persistent store (committed by CI)
 │   ├── repo_queue.json        # Pending repos queue
-│   ├── used_repos.json        # Already used repos
-├── content_backlog/
-│   ├── backlog.json           # Generated posts
-│   └── used_posts.jsonl       # History of posted content
-├── generate_dashboard.py      # Metrics dashboard generator
-├── demo_metrics.py            # Demo for metrics
-└── .github/workflows/daily.yml# Scheduled CI runs
+│   └── used_repos.json        # Already used repos
+├── scripts/
+│   ├── post_topic.py          # One-off niche post generator/poster
+│   └── generate_dashboard.py  # Metrics dashboard generator
+└── .github/workflows/
+    ├── daily.yml              # Scheduled posting (candidate-time slots)
+    ├── metrics.yml            # T+24h/T+48h engagement collection
+    └── growth.yml             # Opt-in growth session
+```
+
+## Data & learning flow
+
+```
+publish  ──> storage.save_used_post()  (hash, topic, hook, template_id, posted_at)
+metrics  ──> engagement_tracker  ──> storage.update_post_engagement()  (likes/comments/impressions)
+generate <── performance_digest  <── storage  (best/worst hooks, topic/template performance)
+         └── content_strategy bandit picks the best-performing niche
 ```
 
 ## Requirements
