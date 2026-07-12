@@ -11,7 +11,19 @@
       },
       "hash": "65ed5afdeb9b0a1906067d0ce35f2213",
       "topic": "Token Budgeting and Context Management"
+    },
+    {
+      "content": "During a recent project, I faced a tough lesson about managing token limits in my LLM chatbot. I was using OpenAI's API, which has a maximum token limit of 4096 for both input and output. I thought I ",
+      "timestamp": "2026-07-12T20:27:35.178920",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 54
+      },
+      "hash": "019089862e59ab922a360a7a44e4fb43",
+      "topic": "Managing Token Limits in LLM Chatbot Development"
     }
   ],
-  "last_updated": "2026-07-06T02:22:38.259367"
+  "last_updated": "2026-07-12T20:27:35.183509"
 }
