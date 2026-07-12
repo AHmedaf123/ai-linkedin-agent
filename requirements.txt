@@ -2,6 +2,7 @@
 requests>=2.31.0
 python-dotenv>=1.0.0
 PyYAML>=6.0.1
+pytz>=2023.3
 playwright>=1.40.0
 
 # Optional dependencies for enhanced functionality
