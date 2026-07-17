@@ -5,7 +5,7 @@ import yaml
 import datetime
 import re
 import requests
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from agent import storage
 from agent.logging_setup import get_logger
 
@@ -69,51 +69,39 @@ def is_topic_cooldown(topic: str, days: int = 7) -> bool:
     return False
 
 
-def get_next_niche_round_robin() -> str:
-    """Get next niche topic in round-robin order, skipping cooldown topics."""
-    niches = load_niches_list()
-    if not niches:
-        fallback_topic = "Artificial Intelligence"
-        save_topic_history(fallback_topic)
-        return fallback_topic
-    
-    start_idx = -1
+def get_next_category() -> str:
+    """Plain round robin over the fixed content categories (config.yaml niches:
+    AI Research & New Advancements / AI Engineering / AI Development).
+
+    Repeating a category every 3rd day is expected and fine — a category is a
+    broad bucket, not a topic. What must never repeat is the specific topic
+    generated inside it (see get_next_fresh_topic), checked against full history.
+    """
+    categories = load_niches_list()
+    if not categories:
+        return "AI Engineering"
+
+    idx = -1
     if os.path.exists(NICHE_INDEX_PATH):
         try:
             with open(NICHE_INDEX_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                start_idx = int(data.get("index", -1))
+                idx = int(json.load(f).get("index", -1))
         except Exception as e:
-            logger.warning(f"Failed to load niche index: {e}")
-            start_idx = -1
-    
-    # Try to find a valid topic (max loops = len(niches))
-    for i in range(1, len(niches) + 1):
-        idx = (start_idx + i) % len(niches)
-        topic = niches[idx]
-        
-        if not is_topic_cooldown(topic):
-            # Found a valid topic - save to history immediately
-            try:
-                with open(NICHE_INDEX_PATH, "w", encoding="utf-8") as f:
-                    json.dump({
-                        "index": idx,
-                        "topic": topic,
-                        "niches_count": len(niches),
-                        "updated_at": datetime.datetime.now().isoformat()
-                    }, f, indent=2)
-            except Exception as e:
-                logger.warning(f"Failed to save niche index: {e}")
-            
-            # Save to topic history BEFORE returning to prevent re-selection
-            save_topic_history(topic)
-            return topic
-            
-    # If all on cooldown, just return the next one anyway to avoid breaking
-    idx = (start_idx + 1) % len(niches)
-    selected_topic = niches[idx]
-    save_topic_history(selected_topic)
-    return selected_topic
+            logger.warning(f"Failed to load category index: {e}")
+            idx = -1
+
+    idx = (idx + 1) % len(categories)
+    try:
+        with open(NICHE_INDEX_PATH, "w", encoding="utf-8") as f:
+            json.dump({
+                "index": idx,
+                "category": categories[idx],
+                "updated_at": datetime.datetime.now().isoformat()
+            }, f, indent=2)
+    except Exception as e:
+        logger.warning(f"Failed to save category index: {e}")
+
+    return categories[idx]
 
 
 def load_config() -> Dict:
@@ -224,86 +212,98 @@ def get_best_performing_template(engagement_metrics: Dict = None) -> Optional[Di
         return None
 
 
-def pick_niche_epsilon_greedy(epsilon: float = None) -> str:
-    """Epsilon-greedy bandit over niches.
-
-    Exploit (1-epsilon): the niche with the best average measured engagement
-    that is not on cooldown. Explore (epsilon, or when no engagement data
-    exists yet): fall back to the round-robin rotation.
-    """
-    if epsilon is None:
-        epsilon = float(os.getenv("NICHE_BANDIT_EPSILON", "0.2"))
-
-    niches = load_niches_list()
-    if not niches:
-        return get_next_niche_round_robin()
-
-    try:
-        perf = storage.get_topic_performance()
-    except Exception as e:
-        logger.warning(f"Could not load topic performance: {e}")
-        perf = {}
-    measured = {t: v for t, v in perf.items() if t in set(niches)}
-
-    if measured and random.random() >= epsilon:
-        ranked = sorted(measured.items(), key=lambda kv: kv[1]["avg_score"], reverse=True)
-        for topic, stats in ranked:
-            if not is_topic_cooldown(topic):
-                logger.info(
-                    f"Niche bandit (exploit): {topic} "
-                    f"(avg engagement {stats['avg_score']:.1f} over {stats['count']} posts)"
-                )
-                save_topic_history(topic)
-                return topic
-        # every measured winner is on cooldown → explore instead
-
-    logger.info("Niche bandit (explore): round-robin rotation")
-    return get_next_niche_round_robin()
+TOPIC_SIMILARITY_GUARD = 0.45  # strict: catches a reword/narrower-slice, not just a near-duplicate
+MAX_TOPIC_GEN_ATTEMPTS = 4
 
 
-def generate_performance_driven_topic() -> Optional[str]:
-    """Craft the next topic from what actually performed well — not a static pick.
+def _all_used_topics() -> List[str]:
+    """Every topic ever posted (topic_history.json keeps the last 50)."""
+    return [h["topic"] for h in load_topic_history()]
 
-    Uses the bounded topic-generation context (top/bottom angles + best topics)
-    and the niche list as *seeds*, and asks the LLM to produce one specific,
-    narrow sub-topic biased toward what worked. Returns None when there is no
-    performance data yet or the LLM is unavailable (caller then falls back to the
-    bandit over the seed list).
-    """
-    try:
-        from agent.performance_digest import build_topic_generation_context
-        ctx = build_topic_generation_context()
-        if not ctx:
-            return None  # no measured performance yet — let the bandit seed instead
 
-        seeds = load_niches_list()
-        available = [n for n in seeds if not is_topic_cooldown(n)] or seeds
-        seed_block = "\n".join(f"- {s}" for s in available)
+def _is_reword_of_past_topic(topic: str, used: List[str]) -> Tuple[bool, float]:
+    if not used:
+        return False, 0.0
+    from agent.deduper import _tfidf_max_similarity
+    sim, _ = _tfidf_max_similarity(topic, used)
+    return sim > TOPIC_SIMILARITY_GUARD, sim
 
-        from agent.llm_generator import LLMGenerator
-        messages = [{
-            "role": "user",
-            "content": (
-                "You choose the next LinkedIn post topic for a hands-on AI/ML engineer.\n\n"
-                f"Broad seed areas you may draw from:\n{seed_block}\n\n"
-                f"{ctx}\n\n"
-                "Using ONLY what performed well above, choose or craft ONE specific, narrow "
-                "sub-topic for the next post. Lean toward the angles/topics that worked and "
-                "avoid the ones that flopped. It must be a concrete thing an engineer can tell "
-                "a real story about (not a broad area). Reply with just the topic line, under "
-                "12 words, no quotes, no trailing punctuation."
-            ),
-        }]
-        raw = LLMGenerator._call_openrouter(messages, max_tokens=40, temperature=0.7)
+
+def _fresh_research_topic(used: List[str]) -> Optional[str]:
+    """Real, currently-published AI research/news from ArXiv — a different paper
+    each time, so it can't repeat or reword anything by construction."""
+    for candidate in fetch_trending_ai_topics():
+        topic = candidate["topic"]
+        is_reword, sim = _is_reword_of_past_topic(topic, used)
+        if not is_reword:
+            save_topic_history(topic)
+            logger.info(f"Content strategy: fresh research topic from ArXiv: {topic}")
+            return topic
+    return None
+
+
+def _fresh_generated_topic(category: str, used: List[str]) -> Optional[str]:
+    """Ask the LLM for one brand-new, narrow topic inside `category`, rejecting
+    anything that repeats or reworks a topic already used (checked against the
+    full topic history, not just recent entries)."""
+    from agent.llm_generator import LLMGenerator
+
+    for attempt in range(MAX_TOPIC_GEN_ATTEMPTS):
+        avoid_block = "\n".join(f"- {t}" for t in used[-40:]) or "(none yet)"
+        prompt = (
+            "Generate ONE new, specific, narrow topic for a LinkedIn post about AI, "
+            f"inside this category: {category}.\n\n"
+            "It must be concrete and narrow enough that one practical post can cover it "
+            "(not a broad area, not a rehash of something already covered).\n\n"
+            "Topics already used — your topic must be about a genuinely different idea, "
+            f"NOT a reworded, renamed, or narrower version of any of these:\n{avoid_block}\n\n"
+            "Reply with just the topic line, under 12 words, no quotes, no trailing punctuation."
+        )
+        try:
+            raw = LLMGenerator._call_openrouter(
+                [{"role": "user", "content": prompt}], max_tokens=40, temperature=0.9
+            )
+        except Exception as e:
+            logger.warning(f"Topic generation call failed (attempt {attempt + 1}): {e}")
+            continue
+
         topic = raw.strip().splitlines()[0].strip().strip('"').strip()
         topic = re.sub(r"[.#]+$", "", topic).strip()
-        if 3 <= len(topic) <= 120:
-            logger.info(f"Content strategy: performance-driven generated topic: {topic}")
-            save_topic_history(topic)
-            return topic
-    except Exception as e:
-        logger.warning(f"Performance-driven topic generation failed: {e}")
+        if not (3 <= len(topic) <= 120):
+            continue
+
+        is_reword, sim = _is_reword_of_past_topic(topic, used)
+        if is_reword:
+            logger.info(f"Generated topic too close to a past topic (sim={sim:.2f}), retrying: {topic}")
+            used = used + [topic]  # don't let the next attempt drift back to this one
+            continue
+
+        save_topic_history(topic)
+        logger.info(f"Content strategy: fresh generated topic in '{category}': {topic}")
+        return topic
+
     return None
+
+
+def get_next_fresh_topic() -> Dict[str, str]:
+    """Pick the next content category (round robin over the 3 fixed categories in
+    config.yaml) and produce a specific topic inside it that has never been used
+    before and is not a reword of a past topic.
+    """
+    category = get_next_category()
+    used = _all_used_topics()
+
+    topic = None
+    if category.strip().lower().startswith("ai research"):
+        topic = _fresh_research_topic(used)
+    if not topic:
+        topic = _fresh_generated_topic(category, used)
+    if not topic:
+        # Last resort: timestamp makes it impossible to literally collide.
+        topic = f"{category} — {datetime.datetime.now().strftime('%Y-%m-%d')}"
+        save_topic_history(topic)
+
+    return {"category": category, "topic": topic}
 
 
 def get_next_topic_strategy() -> Dict:
@@ -311,14 +311,14 @@ def get_next_topic_strategy() -> Dict:
 
     Priority:
       1. Repo queue (if any)
-      2. Performance-driven generated topic (once there is engagement data)
-      3. Niche bandit over the seed list (exploit best niche, explore sometimes)
-      4. Trending ArXiv (opt-in only — off by default for the practical-eng niche)
-      5. Generic fallback
+      2. Fresh topic inside one of the 3 fixed content categories (AI Research &
+         New Advancements / AI Engineering / AI Development), round robin over
+         the category, always a brand-new specific topic that has never been
+         used before and is not a reword of anything posted previously.
+      3. Generic fallback
     """
     try:
         repo_queue = load_repo_queue()
-        config = load_config()
 
         # 1. Repositories (Highest Priority)
         if repo_queue:
@@ -331,59 +331,20 @@ def get_next_topic_strategy() -> Dict:
                 "priority_score": 10
             }
 
-        # 2. Performance-driven generated topic (derived from past reach/reactions)
-        if os.getenv("ENABLE_DYNAMIC_TOPIC", "true").lower() == "true":
-            generated = generate_performance_driven_topic()
-            if generated:
-                return {
-                    "source": "niche",
-                    "topic": generated,
-                    "template": None,
-                    "template_id": "generated",
-                    "priority_score": 9
-                }
-
-        # 3. Niche Topics (epsilon-greedy bandit over measured engagement,
-        #    falling back to round-robin while there is no data)
-        niches = config.get("niches", [])
-        if niches:
-            try:
-                next_niche = pick_niche_epsilon_greedy()
-                logger.info("Content strategy: Using niche topic (bandit)")
-                return {
-                    "source": "niche",
-                    "topic": next_niche,
-                    "template": None,
-                    "template_id": "niche",
-                    "priority_score": 8
-                }
-            except Exception as e:
-                logger.error(f"Error getting niche topic: {str(e)}")
-
-        # 4. Trending ArXiv (opt-in: research-paper content clashes with the
-        #    practical-engineering niche, so it is disabled by default)
-        if os.getenv("ENABLE_TRENDING", "false").lower() == "true":
-            try:
-                trending_topics = fetch_trending_ai_topics()
-                if trending_topics:
-                    selection = random.choice(trending_topics)
-                    topic = selection["topic"]
-                    save_topic_history(topic)
-                    logger.info(f"Content strategy: Using trending AI topic: {topic}")
-                    return {
-                        "source": "trending",
-                        "topic": topic,
-                        "context": selection.get("context", ""),
-                        "template": None,
-                        "template_id": "trending",
-                        "priority_score": 7
-                    }
-            except Exception as e:
-                logger.error(f"Error checking trending topics: {e}")
+        # 2. Fresh, never-repeated topic inside the current rotating category
+        picked = get_next_fresh_topic()
+        logger.info(f"Content strategy: category '{picked['category']}' -> topic '{picked['topic']}'")
+        return {
+            "source": "niche",
+            "topic": picked["topic"],
+            "template": None,
+            "template_id": "niche",
+            "priority_score": 8
+        }
 
     except Exception as e:
         logger.error(f"Critical error in content strategy: {str(e)}")
-    
+
     logger.info("Content strategy: Using generic AI topic fallback")
     fallback_topic = "Practical LLM Engineering"
     save_topic_history(fallback_topic)

@@ -4,24 +4,9 @@
     "smtp_server": "smtp.gmail.com"
   },
   "niches": [
-    "Building Agentic Workflows with Claude",
-    "LLM API Cost Optimization",
-    "Prompt Engineering Patterns Juniors Miss",
-    "RAG Pipeline Mistakes at Scale",
-    "Context Window Management in Production",
-    "Handling LLM Rate Limits and Retries",
-    "Structured Output and Tool Use with LLMs",
-    "Error Handling in AI API Integrations",
-    "Evaluating LLM Outputs in Production",
-    "Streaming Responses and Latency Tuning",
-    "Caching Strategies for LLM Apps",
-    "Defending Against Prompt Injection",
-    "Fine-tuning vs Prompting Trade-offs",
-    "Building Reliable AI Agents",
-    "Token Budgeting and Context Management",
-    "Debugging Nondeterministic LLM Behavior",
-    "Orchestrating Multi-step LLM Pipelines",
-    "Choosing the Right Model for the Job"
+    "AI Research & New Advancements",
+    "AI Engineering",
+    "AI Development"
   ],
   "posting": {
     "start_time": "10:00",
