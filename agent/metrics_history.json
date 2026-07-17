@@ -11,7 +11,79 @@
       },
       "hash": "65ed5afdeb9b0a1906067d0ce35f2213",
       "topic": "Token Budgeting and Context Management"
+    },
+    {
+      "content": "During a recent project, I faced a tough lesson about managing token limits in my LLM chatbot. I was using OpenAI's API, which has a maximum token limit of 4096 for both input and output. I thought I ",
+      "timestamp": "2026-07-13T08:11:06.781540",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 69
+      },
+      "hash": "019089862e59ab922a360a7a44e4fb43",
+      "topic": "Managing Token Limits in LLM Chatbot Development"
+    },
+    {
+      "content": "While working on an LLM chatbot, I hit a wall with token limits that taught me a hard lesson. I was eager to include as much context as possible, thinking it would improve user interactions. I quickly",
+      "timestamp": "2026-07-14T07:05:03.782144",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 20
+      },
+      "hash": "1f0620c6e115fde46bd2ec429f9196c8",
+      "topic": "Managing Token Limits in LLM Chatbot Development"
+    },
+    {
+      "content": "When I first started with LLM chatbots, I didn\u2019t fully grasp how important it was to manage token limits effectively. One specific moment stood out. I was working on a feature that involved pulling in",
+      "timestamp": "2026-07-15T07:08:02.185849",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 12
+      },
+      "hash": "3870303c5a0c942c97e87bc1db9c287a",
+      "topic": "Managing Token Limits in LLM Chatbot Development"
+    },
+    {
+      "content": "I recently ran into a tricky situation while developing an LLM chatbot. I underestimated how quickly tokens add up in conversations. Initially, I thought I could just keep feeding the context without ",
+      "timestamp": "2026-07-16T07:17:21.506662",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 20
+      },
+      "hash": "24fabb95bc4a06bcc1247abcef237c39",
+      "topic": "Managing Token Limits in LLM Chatbot Development: Lessons Learned"
+    },
+    {
+      "content": "I learned a big lesson about token limits when I was working on an LLM chatbot. At first, I didn\u2019t really think much about how context affects the total token count. I wanted my bot to provide detaile",
+      "timestamp": "2026-07-17T07:12:23.250588",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 26
+      },
+      "hash": "8182815ba2bd15c04ee6feaabd9d5542",
+      "topic": "Managing Token Limits: Lessons from Building an LLM Chatbot"
+    },
+    {
+      "content": "I faced a real challenge with token limits while building my LLM chatbot. Early on, I didn't pay enough attention to how the token count added up in conversation flows. I thought a long, detailed resp",
+      "timestamp": "2026-07-17T18:07:23.696800",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 11
+      },
+      "hash": "28c5e0cd4e512b705099918d546b3c18",
+      "topic": "Managing Token Limits: Lessons from My LLM Chatbot Experience"
     }
   ],
-  "last_updated": "2026-07-06T02:22:38.259367"
+  "last_updated": "2026-07-17T18:07:23.700746"
 }
