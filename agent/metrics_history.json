@@ -107,7 +107,19 @@
       },
       "hash": "83952c55509834a4bc13adb1a6215767",
       "topic": "Optimizing AI Workflows for Real-time Data Streaming Applications"
+    },
+    {
+      "content": "I recently worked on a project where we tried to optimize our neural network for energy efficiency. We focused on reducing model size while maintaining performance. One of my team members suggested us",
+      "timestamp": "2026-07-20T18:54:05.198570",
+      "engagement": {
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 51
+      },
+      "hash": "b7c1465400647a01b45664bdcbdedcf3",
+      "topic": "Optimizing Neural Network Architectures for Energy Efficiency in AI Development"
     }
   ],
-  "last_updated": "2026-07-20T07:53:03.083133"
+  "last_updated": "2026-07-20T18:54:05.202190"
 }
