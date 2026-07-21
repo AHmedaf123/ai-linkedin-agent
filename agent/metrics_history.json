@@ -119,7 +119,19 @@
       },
       "hash": "b7c1465400647a01b45664bdcbdedcf3",
       "topic": "Optimizing Neural Network Architectures for Energy Efficiency in AI Development"
+    },
+    {
+      "content": "I was working on a project to create an image similarity metric using text prompts. One thing I learned the hard way was the importance of data preprocessing.\n\nI started with a large dataset of images",
+      "timestamp": "2026-07-21T18:17:17.553440",
+      "engagement": {
+        "likes": 1,
+        "comments": 2,
+        "shares": 0,
+        "impressions": 85
+      },
+      "hash": "04ea2afda9097b26ceb40910a03c55eb",
+      "topic": "The Many Senses of Visual Similarity: A Text-Prompted Image Perceptual Metric"
     }
   ],
-  "last_updated": "2026-07-21T07:28:46.900747"
+  "last_updated": "2026-07-21T18:17:17.557033"
 }
