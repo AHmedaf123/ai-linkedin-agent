@@ -131,7 +131,19 @@
       },
       "hash": "04ea2afda9097b26ceb40910a03c55eb",
       "topic": "The Many Senses of Visual Similarity: A Text-Prompted Image Perceptual Metric"
+    },
+    {
+      "content": "I remember a moment when I was trying to compress a neural network for an edge device. We had this model that worked great in the lab, but when I deployed it on a Raspberry Pi, it was painfully slow. ",
+      "timestamp": "2026-07-22T18:09:22.867696",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 52
+      },
+      "hash": "bcd96dbcde68e9692495d55f52e7d8d5",
+      "topic": "Neural Network Compression Techniques for Edge Device Deployment"
     }
   ],
-  "last_updated": "2026-07-22T07:30:34.275517"
+  "last_updated": "2026-07-22T18:09:22.871461"
 }
