@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import argparse
 from datetime import datetime
@@ -802,11 +803,13 @@ def main_cli():
 
         # Regular workflow execution
         agent = LinkedInAgent(dry_run=args.dry_run, force_post=args.force)
-        agent.run()
+        if not agent.run():
+            sys.exit(1)
 
     except Exception as e:
         logger.critical(f"Fatal error in CLI entry point: {str(e)}", exc_info=True)
         handle_error(e, "CLI Main", critical=True, send_report=True)
+        sys.exit(1)
     finally:
         metrics.save() # Ensure metrics are saved even for CLI-specific actions
 
