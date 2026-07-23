@@ -134,16 +134,16 @@
     },
     {
       "content": "I remember a moment when I was trying to compress a neural network for an edge device. We had this model that worked great in the lab, but when I deployed it on a Raspberry Pi, it was painfully slow. ",
-      "timestamp": "2026-07-22T18:09:22.867696",
+      "timestamp": "2026-07-23T07:28:19.736655",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 52
+        "impressions": 62
       },
       "hash": "bcd96dbcde68e9692495d55f52e7d8d5",
       "topic": "Neural Network Compression Techniques for Edge Device Deployment"
     }
   ],
-  "last_updated": "2026-07-22T18:09:22.871461"
+  "last_updated": "2026-07-23T07:28:20.199968"
 }
