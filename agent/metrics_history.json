@@ -143,7 +143,19 @@
       },
       "hash": "bcd96dbcde68e9692495d55f52e7d8d5",
       "topic": "Neural Network Compression Techniques for Edge Device Deployment"
+    },
+    {
+      "content": "I was building a 3D-aware vision-language model recently, and I ran into an issue with implicit and explicit geometries. At first, I thought handling these separately would be straightforward. I kept ",
+      "timestamp": "2026-07-24T18:19:39.352698",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 15
+      },
+      "hash": "c352367cfc3cbc25c9a076f61c5c4062",
+      "topic": "3D-Aware VLMs with Implicit and Explicit Geometries"
     }
   ],
-  "last_updated": "2026-07-24T07:26:33.462794"
+  "last_updated": "2026-07-24T18:19:39.356120"
 }
