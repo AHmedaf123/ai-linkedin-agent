@@ -146,16 +146,16 @@
     },
     {
       "content": "I was building a 3D-aware vision-language model recently, and I ran into an issue with implicit and explicit geometries. At first, I thought handling these separately would be straightforward. I kept ",
-      "timestamp": "2026-07-25T18:00:16.833973",
+      "timestamp": "2026-07-26T07:31:51.095422",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 19
+        "impressions": 20
       },
       "hash": "c352367cfc3cbc25c9a076f61c5c4062",
       "topic": "3D-Aware VLMs with Implicit and Explicit Geometries"
     }
   ],
-  "last_updated": "2026-07-25T18:00:16.836979"
+  "last_updated": "2026-07-26T07:31:51.098928"
 }
