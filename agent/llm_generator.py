@@ -14,13 +14,7 @@ import hashlib
 logger = logging.getLogger("linkedin-agent")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-3-12b-it:free")
-FALLBACK_MODELS = [
-    "meta-llama/llama-3-8b-instruct:free",
-    "microsoft/phi-3-mini-128k-instruct:free",
-    "google/gemma-3n-e4b-it:free",
-    "qwen/qwen3-235b-a22b:free"
-]
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 
 ENHANCED_PROMPT_CONSTRAINTS = """
 You are a working AI/ML engineer who builds real LLM-powered products and agents.
@@ -258,57 +252,49 @@ USER REQUEST:
         ]
 
     @staticmethod
-    def _call_openrouter(messages: List[Dict[str, str]], model: Optional[str] = None, 
+    def _call_openrouter(messages: List[Dict[str, str]], model: Optional[str] = None,
                         max_tokens: int = 800, temperature: float = 0.8) -> str:
-        """Call OpenRouter API with fallback models."""
+        """Call OpenRouter API with a single fixed model."""
         key = LLMGenerator._load_api_key()
         if not key:
             raise RuntimeError("OPENROUTER_API_KEY not set")
-        
+
         headers = {
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json"
         }
-        
-        models_to_try = [model or DEFAULT_MODEL] + FALLBACK_MODELS
-        
-        for model_name in models_to_try:
-            if not model_name.strip():
-                continue
-                
-            payload = {
-                "model": model_name,
-                "messages": messages,
-                "temperature": temperature,
-                "top_p": 0.95,
-                "max_tokens": max_tokens
-            }
-            
-            for attempt in range(2):
-                try:
-                    resp = requests.post(
-                        OPENROUTER_API_URL,
-                        headers=headers,
-                        json=payload,
-                        timeout=180
-                    )
-                    
-                    if resp.status_code < 400:
-                        content = resp.json()["choices"][0]["message"]["content"].strip()
-                        if model_name != (model or DEFAULT_MODEL):
-                            logger.info(f"Used fallback model: {model_name}")
-                        return content
-                    
-                    logger.warning(f"Model {model_name} returned {resp.status_code}: {resp.text[:200]}")
-                    break
-                    
-                except requests.exceptions.RequestException as e:
-                    logger.warning(f"Request to {model_name} failed (attempt {attempt+1}): {e}")
-                    if attempt == 0:
-                        import time
-                        time.sleep(1.5)
-        
-        raise RuntimeError("All OpenRouter models failed")
+
+        model_name = model or DEFAULT_MODEL
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": 0.95,
+            "max_tokens": max_tokens
+        }
+
+        for attempt in range(2):
+            try:
+                resp = requests.post(
+                    OPENROUTER_API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=180
+                )
+
+                if resp.status_code < 400:
+                    return resp.json()["choices"][0]["message"]["content"].strip()
+
+                logger.warning(f"Model {model_name} returned {resp.status_code}: {resp.text[:200]}")
+                break
+
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Request to {model_name} failed (attempt {attempt+1}): {e}")
+                if attempt == 0:
+                    import time
+                    time.sleep(1.5)
+
+        raise RuntimeError(f"OpenRouter model {model_name} failed")
 
     @staticmethod
     def _validate_post_quality(body: str) -> bool:
@@ -369,6 +355,7 @@ USER REQUEST:
 
         raw_text = None
         last_error = None
+        accepted_despite_invalid = False
         while attempts < max_attempts:
             attempts += 1
             try:
@@ -421,6 +408,7 @@ USER REQUEST:
                 else:
                     logger.warning("Generated post failed validation after retries; accepting last result to avoid blocking workflow")
                     # accept last generated text even if validation failed
+                    accepted_despite_invalid = True
                     break
 
             # otherwise break to continue processing
@@ -435,8 +423,8 @@ USER REQUEST:
             return None
         
         title, body, hashtags = LLMGenerator._postprocess_content(raw_text)
-        
-        if not LLMGenerator._validate_post_quality(body):
+
+        if not accepted_despite_invalid and not LLMGenerator._validate_post_quality(body):
             logger.warning("Generated post failed quality validation")
             return None
         

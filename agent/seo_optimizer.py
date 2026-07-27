@@ -1,16 +1,17 @@
 import os
 import re
 import json
+import random
 import requests
 from typing import List, Tuple, Dict, Any
 from collections import Counter
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-3-12b-it:free")
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 
 SEO_SYSTEM_PROMPT = """You are a light-touch editor for a human engineer's LinkedIn post.
 Your job is to keep it sounding like a real person wrote it, fix only obvious problems, and
-suggest a couple of relevant keywords/hashtags. You must NOT corporate-ify or over-polish it.
+pick hashtags that maximize reach. You must NOT corporate-ify or over-polish it.
 Return only valid JSON with no additional text."""
 
 SEO_USER_TEMPLATE = """Lightly clean up this LinkedIn post. It is meant to sound like a real
@@ -25,7 +26,9 @@ Rules:
 - Keep it 90-180 words, under 1,300 characters.
 - No emojis, no bullet points, no numbered lists, no bold, no section labels.
 - Do NOT stuff keywords. Do NOT add hype words (game-changer, seamless, leverage, unlock, etc).
-- Hashtags: 0 to 2 only, plain and relevant (e.g. #AIEngineering #LLM), at the very end.
+- Hashtags: exactly 3 to 5, for maximum reach. Mix 1-2 broad trending tags (e.g. #AI,
+  #MachineLearning, #GenerativeAI, #ArtificialIntelligence) with 2-3 tags specific to the
+  post's actual topic. Plain, relevant, no stuffing. Place them at the very end.
 - Preserve any @mentions and links.
 
 Return JSON with:
@@ -33,19 +36,19 @@ Return JSON with:
   "optimized_post": "the lightly cleaned post text",
   "llm_seo_score": 85,
   "keywords": ["keyword1", "keyword2", ...],
-  "hashtags": ["#Hashtag1", "#Hashtag2"]
+  "hashtags": ["#Hashtag1", "#Hashtag2", "#Hashtag3"]
 }}
 """
 
 BROAD_HASHTAGS = {
-    "#ai", "#machinelearning", "#datascience", "#deeplearning", "#artificialintelligence",
-    "#ml", "#tech", "#innovation", "#technology", "#digitalTransformation"
+    "#AI", "#MachineLearning", "#DataScience", "#DeepLearning", "#ArtificialIntelligence",
+    "#ML", "#Tech", "#Innovation", "#Technology", "#DigitalTransformation"
 }
 
 NICHE_HASHTAGS = {
-    "#drugdiscovery", "#computationalbiology", "#bioinformatics", "#molecularmodeling",
-    "#airesearch", "#generativeai", "#mlops", "#scientificml", "#proteindesign",
-    "#aiinscience", "#computationalchemistry", "#molecularml", "#biotech"
+    "#DrugDiscovery", "#ComputationalBiology", "#Bioinformatics", "#MolecularModeling",
+    "#AIResearch", "#GenerativeAI", "#MLOps", "#ScientificML", "#ProteinDesign",
+    "#AIinScience", "#ComputationalChemistry", "#MolecularML", "#Biotech"
 }
 
 EMOJI_REGEX = re.compile(r"[\U0001F300-\U0001FAFF]")
@@ -149,22 +152,20 @@ def _keyword_density_score(text: str, keywords: List[str]) -> int:
 
 
 def _hashtag_quality_score(tags: List[str]) -> int:
-    """Hashtag scoring for the humanized style: 0-2 plain tags is ideal.
+    """Hashtag scoring tuned for reach: 3-5 relevant tags is ideal.
 
-    Real engineers rarely stack 5 hashtags, so we reward restraint (0-2), give a
-    small penalty for 3, and penalize hashtag-stuffing.
+    Too few tags limits discovery; too many reads as stuffing. 3-5 is the
+    sweet spot LinkedIn favors for reach without looking spammy.
     """
     count = len(tags)
-    if count <= 2:
-        count_score = 100
-    elif count == 3:
-        count_score = 80
-    else:
-        count_score = max(0, 100 - (count - 3) * 30)
-
     if count == 0:
-        # No hashtags is acceptable in this style; neutral-good.
-        return 85
+        return 20
+    if 3 <= count <= 5:
+        count_score = 100
+    elif count in (1, 2, 6):
+        count_score = 70
+    else:
+        count_score = max(0, 100 - (count - 6) * 20)
 
     tags_lower = [t.lower() for t in tags]
     unique_count = len(set(tags_lower))
@@ -280,11 +281,12 @@ def optimize_post_full(text: str) -> Dict[str, Any]:
         content = llm_response["choices"][0]["message"]["content"]
         data = json.loads(content)
     except Exception:
+        fallback_tags = random.sample(sorted(BROAD_HASHTAGS), 2) + random.sample(sorted(NICHE_HASHTAGS), 2)
         data = {
             "optimized_post": cleaned_text,
             "llm_seo_score": 65,
             "keywords": [],
-            "hashtags": []
+            "hashtags": fallback_tags
         }
     
     optimized_text = _strip_formatting(str(data.get("optimized_post", ""))) or cleaned_text
