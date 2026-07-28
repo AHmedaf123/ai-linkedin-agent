@@ -158,16 +158,16 @@
     },
     {
       "content": "I was in the middle of an iterative update process for an LLM project and learned something crucial about version control. I had made several changes to the model architecture, adding new layers and t",
-      "timestamp": "2026-07-27T18:25:53.923799",
+      "timestamp": "2026-07-28T07:34:08.751031",
       "engagement": {
         "likes": 1,
         "comments": 0,
         "shares": 0,
-        "impressions": 20
+        "impressions": 24
       },
       "hash": "1ac2aad2a452675b5c93291acf977abd",
       "topic": "Incremental Model Updates for AI in Rapid Prototyping Environments"
     }
   ],
-  "last_updated": "2026-07-27T18:25:53.927899"
+  "last_updated": "2026-07-28T07:34:08.753618"
 }
