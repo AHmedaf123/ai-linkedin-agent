@@ -191,7 +191,19 @@
       },
       "hash": "f241a27efcf061fb3c24e737cad63b4a",
       "topic": "Integrating Reinforcement Learning for Automated Software Testing Solutions"
+    },
+    {
+      "content": "I was deep into a reinforcement learning project, working on fine-tuning Q-functions for online training. I thought I had everything under control until I realized that I was wasting a lot of time on ",
+      "timestamp": "2026-07-30T18:18:20.195702",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 19
+      },
+      "hash": "6f90bcc22f858196aef7b44b5e05f20f",
+      "topic": "Do You Really Need to Pretrain Q-Functions for Online RL Fine-Tuning?"
     }
   ],
-  "last_updated": "2026-07-30T07:28:58.826707"
+  "last_updated": "2026-07-30T18:18:20.424456"
 }
