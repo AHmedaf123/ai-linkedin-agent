@@ -203,7 +203,19 @@
       },
       "hash": "6f90bcc22f858196aef7b44b5e05f20f",
       "topic": "Do You Really Need to Pretrain Q-Functions for Online RL Fine-Tuning?"
+    },
+    {
+      "content": "During a recent project optimizing neural networks for real-time robotics, I ran into an interesting challenge with model size. We wanted to reduce latency, so we decided to prune the network. My team",
+      "timestamp": "2026-07-31T18:22:29.207333",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 46
+      },
+      "hash": "9d7c57e076d2ae08c4114de22fe8aaf8",
+      "topic": "AI-Driven Optimization of Neural Network Architectures for Real-Time Robotics"
     }
   ],
-  "last_updated": "2026-07-31T07:46:25.493512"
+  "last_updated": "2026-07-31T18:22:29.211111"
 }
