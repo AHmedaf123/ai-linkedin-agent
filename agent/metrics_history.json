@@ -215,7 +215,19 @@
       },
       "hash": "9d7c57e076d2ae08c4114de22fe8aaf8",
       "topic": "AI-Driven Optimization of Neural Network Architectures for Real-Time Robotics"
+    },
+    {
+      "content": "I was building a model to help diagnose rare diseases using transfer learning. One thing that caught me off guard was the importance of the dataset you choose for fine-tuning. We used a small dataset ",
+      "timestamp": "2026-08-01T18:03:08.543923",
+      "engagement": {
+        "likes": 3,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 43
+      },
+      "hash": "a766a4be3f72fd0070836b4c3dbeaa87",
+      "topic": "Leveraging Transfer Learning for Rare Disease Diagnosis in AI Development"
     }
   ],
-  "last_updated": "2026-08-01T07:24:38.167796"
+  "last_updated": "2026-08-01T18:03:08.547225"
 }
