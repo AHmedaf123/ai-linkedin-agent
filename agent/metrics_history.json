@@ -218,16 +218,16 @@
     },
     {
       "content": "I was building a model to help diagnose rare diseases using transfer learning. One thing that caught me off guard was the importance of the dataset you choose for fine-tuning. We used a small dataset ",
-      "timestamp": "2026-08-01T18:03:08.543923",
+      "timestamp": "2026-08-02T07:28:31.322242",
       "engagement": {
         "likes": 3,
         "comments": 0,
         "shares": 0,
-        "impressions": 43
+        "impressions": 52
       },
       "hash": "a766a4be3f72fd0070836b4c3dbeaa87",
       "topic": "Leveraging Transfer Learning for Rare Disease Diagnosis in AI Development"
     }
   ],
-  "last_updated": "2026-08-01T18:03:08.547225"
+  "last_updated": "2026-08-02T07:28:31.324911"
 }
