@@ -239,7 +239,19 @@
       },
       "hash": "857ae3a325279e8018ae71b6badf37c2",
       "topic": "Learning to Trace Seiberg Dualities"
+    },
+    {
+      "content": "I was recently tuning hyperparameters for a chemical simulation model using Bayesian optimization. One mistake I made was not paying enough attention to the search space boundaries. I set them too wid",
+      "timestamp": "2026-08-03T18:52:51.496886",
+      "engagement": {
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 102
+      },
+      "hash": "6eb766a0aa59c1c1cda6d2d0851fc70d",
+      "topic": "Using AI to Automate Hyperparameter Optimization in Chemical Simulations"
     }
   ],
-  "last_updated": "2026-08-03T08:22:01.669028"
+  "last_updated": "2026-08-03T18:52:51.499234"
 }
