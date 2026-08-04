@@ -251,7 +251,19 @@
       },
       "hash": "6eb766a0aa59c1c1cda6d2d0851fc70d",
       "topic": "Using AI to Automate Hyperparameter Optimization in Chemical Simulations"
+    },
+    {
+      "content": "I was working on a real-time anomaly detection system using a combination of LSTM networks and traditional statistical methods. One thing that caught me off guard was how sensitive the model was to th",
+      "timestamp": "2026-08-04T18:29:02.734103",
+      "engagement": {
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 31
+      },
+      "hash": "49cd511ffa865287d93c4c20e91a6f24",
+      "topic": "AI Techniques for Real-Time Anomaly Detection in Software Systems"
     }
   ],
-  "last_updated": "2026-08-04T07:31:38.216113"
+  "last_updated": "2026-08-04T18:29:02.737358"
 }
