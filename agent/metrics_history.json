@@ -263,7 +263,19 @@
       },
       "hash": "49cd511ffa865287d93c4c20e91a6f24",
       "topic": "AI Techniques for Real-Time Anomaly Detection in Software Systems"
+    },
+    {
+      "content": "While working on TurnSight, I faced a tricky situation with tool integration and reasoning. The idea of self-distillation at the turn level sounded great, but I underestimated how each tool's context ",
+      "timestamp": "2026-08-05T18:23:13.508135",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 51
+      },
+      "hash": "eeed6b85824848ce9883eb2f15d61267",
+      "topic": "TurnSight: Turn-Level Hindsight Self-Distillation for Tool-Integrated Reasoning"
     }
   ],
-  "last_updated": "2026-08-05T07:33:48.953395"
+  "last_updated": "2026-08-05T18:23:13.511111"
 }
