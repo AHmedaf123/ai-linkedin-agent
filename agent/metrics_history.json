@@ -254,16 +254,16 @@
     },
     {
       "content": "I was working on a real-time anomaly detection system using a combination of LSTM networks and traditional statistical methods. One thing that caught me off guard was how sensitive the model was to th",
-      "timestamp": "2026-08-04T18:29:02.734103",
+      "timestamp": "2026-08-05T07:33:48.950044",
       "engagement": {
         "likes": 1,
         "comments": 0,
         "shares": 0,
-        "impressions": 31
+        "impressions": 36
       },
       "hash": "49cd511ffa865287d93c4c20e91a6f24",
       "topic": "AI Techniques for Real-Time Anomaly Detection in Software Systems"
     }
   ],
-  "last_updated": "2026-08-04T18:29:02.737358"
+  "last_updated": "2026-08-05T07:33:48.953395"
 }
