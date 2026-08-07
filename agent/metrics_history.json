@@ -275,7 +275,19 @@
       },
       "hash": "eeed6b85824848ce9883eb2f15d61267",
       "topic": "TurnSight: Turn-Level Hindsight Self-Distillation for Tool-Integrated Reasoning"
+    },
+    {
+      "content": "I was working on a cloud system that needed better load balancing. At first, I thought I could just stick to a basic round-robin algorithm, but it didn\u2019t adapt well to traffic spikes. One day, we saw ",
+      "timestamp": "2026-08-07T06:05:45.346488",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 54
+      },
+      "hash": "7e14f28123c950cbd3fe732ffd4a6d9f",
+      "topic": "Using AI for Adaptive Load Balancing in Cloud Infrastructure"
     }
   ],
-  "last_updated": "2026-08-06T07:34:26.958445"
+  "last_updated": "2026-08-07T06:05:45.349678"
 }
