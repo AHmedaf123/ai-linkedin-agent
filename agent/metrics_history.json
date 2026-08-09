@@ -311,7 +311,19 @@
       },
       "hash": "2c91bebf30b5c17cb4b8b1eb97fc8d4e",
       "topic": "Learning When to Trust via Selective Context Preference Optimization"
+    },
+    {
+      "content": "When I was setting up a deployment pipeline for a custom AI model using Kubernetes, I faced a tricky issue with resource allocation. I expected the pods to run smoothly, but I didn't specify limits co",
+      "timestamp": "2026-08-09T17:33:35.484254",
+      "engagement": {
+        "likes": 3,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 40
+      },
+      "hash": "36aec185a2721580495158f4b20b0932",
+      "topic": "Building Custom AI Model Deployment Pipelines with Kubernetes"
     }
   ],
-  "last_updated": "2026-08-09T05:41:53.923512"
+  "last_updated": "2026-08-09T17:33:35.490130"
 }
