@@ -314,16 +314,16 @@
     },
     {
       "content": "When I was setting up a deployment pipeline for a custom AI model using Kubernetes, I faced a tricky issue with resource allocation. I expected the pods to run smoothly, but I didn't specify limits co",
-      "timestamp": "2026-08-09T17:33:35.484254",
+      "timestamp": "2026-08-10T06:07:27.197266",
       "engagement": {
         "likes": 3,
         "comments": 0,
         "shares": 0,
-        "impressions": 40
+        "impressions": 48
       },
       "hash": "36aec185a2721580495158f4b20b0932",
       "topic": "Building Custom AI Model Deployment Pipelines with Kubernetes"
     }
   ],
-  "last_updated": "2026-08-09T17:33:35.490130"
+  "last_updated": "2026-08-10T06:07:27.206512"
 }
