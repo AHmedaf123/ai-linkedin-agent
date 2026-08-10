@@ -323,7 +323,19 @@
       },
       "hash": "36aec185a2721580495158f4b20b0932",
       "topic": "Building Custom AI Model Deployment Pipelines with Kubernetes"
+    },
+    {
+      "content": "I was recently working on a data annotation project for training an NLP model. We had a large dataset, but it was hard to keep the quality of annotations consistent. One issue I faced was how to handl",
+      "timestamp": "2026-08-10T17:53:12.803005",
+      "engagement": {
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 102
+      },
+      "hash": "3329b55d3f9f3f1745f2ca27c6aa18fe",
+      "topic": "AI Techniques for Enhancing Data Annotation in ML Model Training"
     }
   ],
-  "last_updated": "2026-08-10T06:07:27.206512"
+  "last_updated": "2026-08-10T17:53:12.814426"
 }
