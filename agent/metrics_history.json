@@ -335,7 +335,19 @@
       },
       "hash": "3329b55d3f9f3f1745f2ca27c6aa18fe",
       "topic": "AI Techniques for Enhancing Data Annotation in ML Model Training"
+    },
+    {
+      "content": "I was testing an automated text-to-speech system recently, focusing on how well it handles different dialects. One issue I ran into was the evaluation metrics. I used a standard measure based on natur",
+      "timestamp": "2026-08-11T17:58:21.571589",
+      "engagement": {
+        "likes": 3,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 23
+      },
+      "hash": "7db9ddfe721636edb447b5e851c0c58d",
+      "topic": "Beyond Naturalness: Probing Automated Text-To-Speech Evaluators on Linguistically Grounded Dimensions"
     }
   ],
-  "last_updated": "2026-08-11T05:48:46.793618"
+  "last_updated": "2026-08-11T17:58:21.578320"
 }
