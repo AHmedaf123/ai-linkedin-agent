@@ -338,16 +338,16 @@
     },
     {
       "content": "I was testing an automated text-to-speech system recently, focusing on how well it handles different dialects. One issue I ran into was the evaluation metrics. I used a standard measure based on natur",
-      "timestamp": "2026-08-11T17:58:21.571589",
+      "timestamp": "2026-08-12T06:08:46.805023",
       "engagement": {
         "likes": 3,
         "comments": 0,
         "shares": 0,
-        "impressions": 23
+        "impressions": 24
       },
       "hash": "7db9ddfe721636edb447b5e851c0c58d",
       "topic": "Beyond Naturalness: Probing Automated Text-To-Speech Evaluators on Linguistically Grounded Dimensions"
     }
   ],
-  "last_updated": "2026-08-11T17:58:21.578320"
+  "last_updated": "2026-08-12T06:08:46.808880"
 }
