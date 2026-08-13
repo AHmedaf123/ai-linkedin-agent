@@ -1,9 +1,5 @@
 [
   {
-    "topic": "AI Engineering for Scientific Workflows",
-    "timestamp": "2025-12-15T20:28:18.543795"
-  },
-  {
     "topic": "Autonomous Scientific Agents",
     "timestamp": "2025-12-15T20:28:33.155109"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Debugging AI Model Outputs: Techniques for Effective Error Analysis",
     "timestamp": "2026-08-12T06:08:49.023053"
+  },
+  {
+    "topic": "Integrating Explainable AI in Predictive Maintenance Systems",
+    "timestamp": "2026-08-13T06:10:41.369620"
   }
 ]
