@@ -362,16 +362,16 @@
     },
     {
       "content": "In a recent project integrating explainable AI into a predictive maintenance system, I learned the hard way about the importance of proper feature importance visualization. I was using SHAP (SHapley A",
-      "timestamp": "2026-08-13T17:58:50.183889",
+      "timestamp": "2026-08-14T06:08:28.010715",
       "engagement": {
         "likes": 1,
         "comments": 0,
         "shares": 0,
-        "impressions": 21
+        "impressions": 30
       },
       "hash": "ec214d6965a9bdcd578f19f001d5f0ad",
       "topic": "Integrating Explainable AI in Predictive Maintenance Systems"
     }
   ],
-  "last_updated": "2026-08-13T17:58:50.187053"
+  "last_updated": "2026-08-14T06:08:28.016543"
 }
