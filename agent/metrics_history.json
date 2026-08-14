@@ -371,7 +371,19 @@
       },
       "hash": "ec214d6965a9bdcd578f19f001d5f0ad",
       "topic": "Integrating Explainable AI in Predictive Maintenance Systems"
+    },
+    {
+      "content": "I was deep into a project focused on optimizing meta-harness designs for long-horizon agentic tasks when I stumbled upon a tricky issue with feedback loops. I thought I could just set a simple thresho",
+      "timestamp": "2026-08-14T17:54:30.388770",
+      "engagement": {
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 16
+      },
+      "hash": "642be029bb69169deb42166d4a2666a4",
+      "topic": "AutoDesign: Meta-Harness Optimization for Long-Horizon Agentic Design"
     }
   ],
-  "last_updated": "2026-08-14T06:08:28.016543"
+  "last_updated": "2026-08-14T17:54:30.392216"
 }
