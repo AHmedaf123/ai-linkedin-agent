@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Molecular ML Case Studies",
-    "timestamp": "2025-12-15T20:28:49.907834"
-  },
-  {
     "topic": "Explainable ML for Molecules",
     "timestamp": "2025-12-15T20:28:58.790219"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "AutoDesign: Meta-Harness Optimization for Long-Horizon Agentic Design",
     "timestamp": "2026-08-14T06:08:28.252910"
+  },
+  {
+    "topic": "Optimizing Data Pipeline Efficiency for AI Model Training",
+    "timestamp": "2026-08-15T05:17:26.819197"
   }
 ]
