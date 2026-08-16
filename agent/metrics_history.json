@@ -386,16 +386,16 @@
     },
     {
       "content": "While working on a data pipeline for training an AI model, I faced a frustrating issue with data loading speeds. I was using a standard CSV file, and as the dataset grew to a few hundred thousand rows",
-      "timestamp": "2026-08-15T17:21:53.820322",
+      "timestamp": "2026-08-16T05:19:50.529749",
       "engagement": {
         "likes": 1,
         "comments": 0,
         "shares": 0,
-        "impressions": 12
+        "impressions": 13
       },
       "hash": "36719bb19451893597b7bcb616d3c325",
       "topic": "Optimizing Data Pipeline Efficiency for AI Model Training"
     }
   ],
-  "last_updated": "2026-08-15T17:21:53.823340"
+  "last_updated": "2026-08-16T05:19:50.532538"
 }
