@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Super Suffixes: Bypassing Text Generation Alignment and Guard Models Simultaneously",
-    "timestamp": "2025-12-15T20:39:11.488402"
-  },
-  {
     "topic": "Computational Chemistry + AI Commentary",
     "timestamp": "2025-12-15T20:39:27.946672"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Designing AI Systems for Context-Aware User Interaction",
     "timestamp": "2026-08-16T05:19:51.895275"
+  },
+  {
+    "topic": "Decoding the Past: An Uncertainty-Aware Deep Learning Framework for Sex Attribution in Prehistoric Hand Stencils",
+    "timestamp": "2026-08-17T05:27:57.385437"
   }
 ]

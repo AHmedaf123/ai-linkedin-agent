@@ -398,16 +398,16 @@
     },
     {
       "content": "I was working on an aware AI system where user intent can shift based on small changes in input. One day, I noticed that our model struggled when users switched topics within a single conversation. It",
-      "timestamp": "2026-08-16T17:20:48.608923",
+      "timestamp": "2026-08-17T05:27:57.045656",
       "engagement": {
         "likes": 1,
         "comments": 0,
         "shares": 0,
-        "impressions": 24
+        "impressions": 32
       },
       "hash": "1648815e2574b2b874781cf488c33b2a",
       "topic": "Designing AI Systems for Context-Aware User Interaction"
     }
   ],
-  "last_updated": "2026-08-16T17:20:48.612050"
+  "last_updated": "2026-08-17T05:27:57.090182"
 }
