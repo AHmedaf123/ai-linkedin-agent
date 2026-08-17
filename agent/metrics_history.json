@@ -407,7 +407,19 @@
       },
       "hash": "1648815e2574b2b874781cf488c33b2a",
       "topic": "Designing AI Systems for Context-Aware User Interaction"
+    },
+    {
+      "content": "I was recently working on a project to classify prehistoric hand stencils based on sex attribution. It was an interesting challenge, but I ran into a major issue with uncertainty in the data. The mode",
+      "timestamp": "2026-08-17T17:28:28.615908",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 8
+      },
+      "hash": "639486d7010edd13857f167fad63415c",
+      "topic": "Decoding the Past: An Uncertainty-Aware Deep Learning Framework for Sex Attribution in Prehistoric Hand Stencils"
     }
   ],
-  "last_updated": "2026-08-17T05:27:57.090182"
+  "last_updated": "2026-08-17T17:28:28.620274"
 }
