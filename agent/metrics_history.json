@@ -410,16 +410,16 @@
     },
     {
       "content": "I was recently working on a project to classify prehistoric hand stencils based on sex attribution. It was an interesting challenge, but I ran into a major issue with uncertainty in the data. The mode",
-      "timestamp": "2026-08-17T17:28:28.615908",
+      "timestamp": "2026-08-18T05:21:14.267009",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 8
+        "impressions": 9
       },
       "hash": "639486d7010edd13857f167fad63415c",
       "topic": "Decoding the Past: An Uncertainty-Aware Deep Learning Framework for Sex Attribution in Prehistoric Hand Stencils"
     }
   ],
-  "last_updated": "2026-08-17T17:28:28.620274"
+  "last_updated": "2026-08-18T05:21:14.349343"
 }
