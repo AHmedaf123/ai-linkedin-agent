@@ -1,9 +1,5 @@
 [
   {
-    "topic": "A General Algorithm for Detecting Higher-Order Interactions via Random Sequential Additions",
-    "timestamp": "2025-12-15T20:39:42.049763"
-  },
-  {
     "topic": "Particulate: Feed-Forward 3D Object Articulation",
     "timestamp": "2025-12-15T20:39:54.454859"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Implementing Model Drift Detection in AI Systems for Continuous Improvement",
     "timestamp": "2026-08-18T05:21:15.283198"
+  },
+  {
+    "topic": "Real-time Feedback Loops in AI Model Training for User-Centric Design",
+    "timestamp": "2026-08-19T05:23:26.985659"
   }
 ]

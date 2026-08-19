@@ -422,16 +422,16 @@
     },
     {
       "content": "I was working on a project that needed to detect model drift for a customer support AI. Initially, I thought I could just compare predictions over time and flag changes. But I quickly learned that sim",
-      "timestamp": "2026-08-18T17:32:00.364034",
+      "timestamp": "2026-08-19T05:23:25.541387",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 7
+        "impressions": 8
       },
       "hash": "bbe49ed635e13a5088673c1924d6662c",
       "topic": "Implementing Model Drift Detection in AI Systems for Continuous Improvement"
     }
   ],
-  "last_updated": "2026-08-18T17:32:00.366887"
+  "last_updated": "2026-08-19T05:23:25.544173"
 }
