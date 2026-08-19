@@ -431,7 +431,19 @@
       },
       "hash": "bbe49ed635e13a5088673c1924d6662c",
       "topic": "Implementing Model Drift Detection in AI Systems for Continuous Improvement"
+    },
+    {
+      "content": "I was fine-tuning an AI model last month for a user-centric project. I thought I had a solid training process, but the model didn\u2019t seem to improve with user feedback. After digging deeper, I realized",
+      "timestamp": "2026-08-19T17:28:14.818783",
+      "engagement": {
+        "likes": 7,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 43
+      },
+      "hash": "e91034106af9c8598b8644d5a149a5ab",
+      "topic": "Real-time Feedback Loops in AI Model Training for User-Centric Design"
     }
   ],
-  "last_updated": "2026-08-19T05:23:25.544173"
+  "last_updated": "2026-08-19T17:28:14.822844"
 }
