@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Particulate: Feed-Forward 3D Object Articulation",
-    "timestamp": "2025-12-15T20:39:54.454859"
-  },
-  {
     "topic": "Spherical Leech Quantization for Visual Tokenization and Generation",
     "timestamp": "2025-12-18T01:15:45.255325"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Real-time Feedback Loops in AI Model Training for User-Centric Design",
     "timestamp": "2026-08-19T05:23:26.985659"
+  },
+  {
+    "topic": "SPADE: Self-Play in Adaptive Synthetic Executable Environments",
+    "timestamp": "2026-08-20T05:22:43.905711"
   }
 ]
