@@ -443,7 +443,19 @@
       },
       "hash": "e91034106af9c8598b8644d5a149a5ab",
       "topic": "Real-time Feedback Loops in AI Model Training for User-Centric Design"
+    },
+    {
+      "content": "When I was working on implementing SPADE for an AI agent, I hit a snag with the self-play strategy. The idea is simple: let agents learn by competing against themselves in a synthetic environment. But",
+      "timestamp": "2026-08-20T17:30:46.908178",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 25
+      },
+      "hash": "0a593e99429d8df8b9fc9b02a52bbcf9",
+      "topic": "SPADE: Self-Play in Adaptive Synthetic Executable Environments"
     }
   ],
-  "last_updated": "2026-08-20T05:22:43.474260"
+  "last_updated": "2026-08-20T17:30:46.914308"
 }
