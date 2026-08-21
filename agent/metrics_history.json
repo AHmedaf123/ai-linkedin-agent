@@ -455,7 +455,19 @@
       },
       "hash": "0a593e99429d8df8b9fc9b02a52bbcf9",
       "topic": "SPADE: Self-Play in Adaptive Synthetic Executable Environments"
+    },
+    {
+      "content": "I was working on a machine learning model recently, focused on text classification. We had a huge dataset, but I noticed something odd: the model\u2019s performance was inconsistent. It often misclassified",
+      "timestamp": "2026-08-21T17:30:40.316833",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 93
+      },
+      "hash": "0dfc359c807e6908105ae6f299bdd886",
+      "topic": "Evaluating the Impact of Data Quality on AI Model Performance"
     }
   ],
-  "last_updated": "2026-08-21T05:24:25.685944"
+  "last_updated": "2026-08-21T17:30:40.324552"
 }
