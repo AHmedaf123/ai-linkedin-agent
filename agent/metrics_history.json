@@ -479,7 +479,19 @@
       },
       "hash": "e031421810c1c250c2c2562aa42a0c63",
       "topic": "Adaptive Learning Strategies for Autonomous AI Agent Performance Optimization"
+    },
+    {
+      "content": "In my recent project dealing with martingales and random times, I hit a snag while trying to calculate expected values over random times. I was using a Python library that promised simple integration ",
+      "timestamp": "2026-08-23T17:21:51.047390",
+      "engagement": {
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 69
+      },
+      "hash": "d71bfa09bab8346e8ba05615de91d4e4",
+      "topic": "Information on trajectories: martingales and random times"
     }
   ],
-  "last_updated": "2026-08-23T05:21:25.785251"
+  "last_updated": "2026-08-23T17:21:51.050479"
 }
