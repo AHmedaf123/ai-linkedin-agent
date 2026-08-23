@@ -1,9 +1,5 @@
 [
   {
-    "topic": "AI-Driven Clinical Trial Optimization",
-    "timestamp": "2025-12-18T01:18:57.026061"
-  },
-  {
     "topic": "Biomarker Discovery using ML",
     "timestamp": "2025-12-18T01:19:09.072893"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Adaptive Learning Strategies for Autonomous AI Agent Performance Optimization",
     "timestamp": "2026-08-22T05:19:05.015335"
+  },
+  {
+    "topic": "Information on trajectories: martingales and random times",
+    "timestamp": "2026-08-23T05:21:26.133711"
   }
 ]
