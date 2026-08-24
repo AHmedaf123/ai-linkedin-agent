@@ -491,7 +491,19 @@
       },
       "hash": "d71bfa09bab8346e8ba05615de91d4e4",
       "topic": "Information on trajectories: martingales and random times"
+    },
+    {
+      "content": "I was recently tuning an LLM for a project focused on user interaction. We aimed to make the model more responsive by adjusting its parameters. I thought simply increasing the max tokens would give us",
+      "timestamp": "2026-08-24T17:32:49.169190",
+      "engagement": {
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 27
+      },
+      "hash": "9a940a08b4d381b300927348a378e8b6",
+      "topic": "Implementing Model-Centric AI Design for Enhanced Usability and Performance"
     }
   ],
-  "last_updated": "2026-08-24T05:31:00.323814"
+  "last_updated": "2026-08-24T17:32:49.173232"
 }
