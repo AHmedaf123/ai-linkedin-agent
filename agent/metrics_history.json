@@ -482,16 +482,16 @@
     },
     {
       "content": "In my recent project dealing with martingales and random times, I hit a snag while trying to calculate expected values over random times. I was using a Python library that promised simple integration ",
-      "timestamp": "2026-08-23T17:21:51.047390",
+      "timestamp": "2026-08-24T05:30:59.955217",
       "engagement": {
         "likes": 1,
         "comments": 0,
         "shares": 0,
-        "impressions": 69
+        "impressions": 73
       },
       "hash": "d71bfa09bab8346e8ba05615de91d4e4",
       "topic": "Information on trajectories: martingales and random times"
     }
   ],
-  "last_updated": "2026-08-23T17:21:51.050479"
+  "last_updated": "2026-08-24T05:31:00.323814"
 }
