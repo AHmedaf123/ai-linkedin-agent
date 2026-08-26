@@ -515,7 +515,19 @@
       },
       "hash": "f072f99c9fb0e03d0cfeabb759403e33",
       "topic": "Leveraging AI for Intelligent Error Correction in Software Development"
+    },
+    {
+      "content": "I was working on an evaluation system for a generative model and stumbled upon an issue with FID scores. At first, I thought a low FID score meant the model was performing well. But then, I noticed so",
+      "timestamp": "2026-08-26T19:05:14.100110",
+      "engagement": {
+        "likes": 4,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 52
+      },
+      "hash": "397183982d0c7cb584328c7bb7685c4d",
+      "topic": "What FID Hides: Detecting, Ranking, and Diagnosing Deviations in Generative Evaluation"
     }
   ],
-  "last_updated": "2026-08-26T05:25:16.271718"
+  "last_updated": "2026-08-26T19:05:14.102939"
 }
