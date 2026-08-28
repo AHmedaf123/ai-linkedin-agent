@@ -518,16 +518,16 @@
     },
     {
       "content": "I was working on an evaluation system for a generative model and stumbled upon an issue with FID scores. At first, I thought a low FID score meant the model was performing well. But then, I noticed so",
-      "timestamp": "2026-08-26T19:05:14.100110",
+      "timestamp": "2026-08-28T01:19:45.954195",
       "engagement": {
         "likes": 4,
         "comments": 0,
         "shares": 0,
-        "impressions": 52
+        "impressions": 65
       },
       "hash": "397183982d0c7cb584328c7bb7685c4d",
       "topic": "What FID Hides: Detecting, Ranking, and Diagnosing Deviations in Generative Evaluation"
     }
   ],
-  "last_updated": "2026-08-26T19:05:14.102939"
+  "last_updated": "2026-08-28T01:19:45.958144"
 }
