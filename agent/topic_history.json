@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Mastering Token Budgeting for LLM Context Management",
-    "timestamp": "2026-07-06T02:11:19.522432"
-  },
-  {
     "topic": "Token Budgeting Strategies for LLM-Powered Chatbots",
     "timestamp": "2026-07-06T02:16:58.936143"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Implementing AI-driven Personalization Strategies in E-commerce Platforms",
     "timestamp": "2026-09-02T09:12:26.578830"
+  },
+  {
+    "topic": "A Common Measure of Communication for Speech Brain-Computer Interfaces",
+    "timestamp": "2026-09-03T09:18:53.082631"
   }
 ]

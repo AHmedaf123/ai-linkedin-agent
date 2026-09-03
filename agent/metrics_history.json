@@ -542,16 +542,16 @@
     },
     {
       "content": "I was working on a project to add AI-driven personalization to an e-commerce platform. One tricky part was handling user session data. I thought we could just use a simple cookie to store user prefere",
-      "timestamp": "2026-09-02T19:39:28.267088",
+      "timestamp": "2026-09-03T09:18:52.556646",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 6
+        "impressions": 7
       },
       "hash": "0dafdab298e71c09f183c95d15adf1ee",
       "topic": "Implementing AI-driven Personalization Strategies in E-commerce Platforms"
     }
   ],
-  "last_updated": "2026-09-02T19:39:28.270521"
+  "last_updated": "2026-09-03T09:18:52.564393"
 }
