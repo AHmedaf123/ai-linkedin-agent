@@ -563,7 +563,19 @@
       },
       "hash": "c292eadb5a2397b91503a98ff763374f",
       "topic": "A Common Measure of Communication for Speech Brain-Computer Interfaces"
+    },
+    {
+      "content": "I was working on automatic code generation for a low-code platform and ran into a tricky issue with prompt design. Initially, I used very generic prompts, thinking they would work for any type of code",
+      "timestamp": "2026-09-04T19:20:38.416255",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 19
+      },
+      "hash": "5acea80466bc5c7bf759641e1f668662",
+      "topic": "AI-Driven Techniques for Automatic Code Generation in Low-Code Platforms"
     }
   ],
-  "last_updated": "2026-09-04T09:12:34.637719"
+  "last_updated": "2026-09-04T19:20:38.421317"
 }
