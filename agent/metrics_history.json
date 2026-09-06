@@ -587,7 +587,19 @@
       },
       "hash": "281cf56b01cc8314f1e3bcd22157157e",
       "topic": "Integrating AI-Powered Version Control in Collaborative Software Development Environments"
+    },
+    {
+      "content": "When I was working on a project to turn natural-language specifications into local neural functions, I hit a snag with the way I handled the input data. I was using a popular NLP library to parse user",
+      "timestamp": "2026-09-06T18:55:00.506804",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 39
+      },
+      "hash": "0e9eae2884880c7b454cb6a8ba18960d",
+      "topic": "Compile by Training: Turning Natural-Language Specifications into Local Neural Functions"
     }
   ],
-  "last_updated": "2026-09-06T09:04:13.754278"
+  "last_updated": "2026-09-06T18:55:00.517573"
 }
