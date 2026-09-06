@@ -1,10 +1,6 @@
 [
   {
     "topic": "Managing Token Limits in LLM Chatbot Development",
-    "timestamp": "2026-07-13T08:11:08.194253"
-  },
-  {
-    "topic": "Managing Token Limits in LLM Chatbot Development",
     "timestamp": "2026-07-14T07:05:04.796209"
   },
   {
@@ -198,5 +194,9 @@
   {
     "topic": "Integrating AI-Powered Version Control in Collaborative Software Development Environments",
     "timestamp": "2026-09-05T08:43:21.709242"
+  },
+  {
+    "topic": "Compile by Training: Turning Natural-Language Specifications into Local Neural Functions",
+    "timestamp": "2026-09-06T09:04:14.005099"
   }
 ]
