@@ -590,16 +590,16 @@
     },
     {
       "content": "When I was working on a project to turn natural-language specifications into local neural functions, I hit a snag with the way I handled the input data. I was using a popular NLP library to parse user",
-      "timestamp": "2026-09-06T18:55:00.506804",
+      "timestamp": "2026-09-07T09:51:22.630017",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 39
+        "impressions": 46
       },
       "hash": "0e9eae2884880c7b454cb6a8ba18960d",
       "topic": "Compile by Training: Turning Natural-Language Specifications into Local Neural Functions"
     }
   ],
-  "last_updated": "2026-09-06T18:55:00.517573"
+  "last_updated": "2026-09-07T09:51:22.900320"
 }
