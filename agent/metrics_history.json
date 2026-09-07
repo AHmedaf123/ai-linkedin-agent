@@ -599,7 +599,19 @@
       },
       "hash": "0e9eae2884880c7b454cb6a8ba18960d",
       "topic": "Compile by Training: Turning Natural-Language Specifications into Local Neural Functions"
+    },
+    {
+      "content": "I learned something important while benchmarking AI model performance on edge devices. We were trying to evaluate a model running on low-power hardware, and I assumed the performance would mirror our ",
+      "timestamp": "2026-09-07T20:23:25.062529",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 41
+      },
+      "hash": "800d32876bd5c9e11563f7785ad92eca",
+      "topic": "Dynamic Benchmarking for AI Model Performance in Edge Computing Environments"
     }
   ],
-  "last_updated": "2026-09-07T09:51:22.900320"
+  "last_updated": "2026-09-07T20:23:25.142660"
 }
