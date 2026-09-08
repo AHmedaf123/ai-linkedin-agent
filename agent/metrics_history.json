@@ -602,16 +602,16 @@
     },
     {
       "content": "I learned something important while benchmarking AI model performance on edge devices. We were trying to evaluate a model running on low-power hardware, and I assumed the performance would mirror our ",
-      "timestamp": "2026-09-07T20:23:25.062529",
+      "timestamp": "2026-09-08T09:15:41.269504",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 41
+        "impressions": 48
       },
       "hash": "800d32876bd5c9e11563f7785ad92eca",
       "topic": "Dynamic Benchmarking for AI Model Performance in Edge Computing Environments"
     }
   ],
-  "last_updated": "2026-09-07T20:23:25.142660"
+  "last_updated": "2026-09-08T09:15:41.273080"
 }
