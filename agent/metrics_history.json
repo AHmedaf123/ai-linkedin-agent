@@ -623,7 +623,19 @@
       },
       "hash": "b28e88c7de4405fa978205fd94f4945e",
       "topic": "AI-Driven Techniques for Contextual Understanding in Conversational Agents"
+    },
+    {
+      "content": "I was working on TANGO, which focuses on humanoid navigation using a vision-language-action model. One day, I noticed something odd while testing the model in a cluttered environment. The robot was ge",
+      "timestamp": "2026-09-09T19:38:02.724937",
+      "engagement": {
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 79
+      },
+      "hash": "340d9fa3643bc166ad367449911591d9",
+      "topic": "TANGO: Humanoid Navigation in Cluttered Environments with a Whole-Body Vision-Language-Action Model"
     }
   ],
-  "last_updated": "2026-09-09T09:19:12.708691"
+  "last_updated": "2026-09-09T19:38:02.727951"
 }
