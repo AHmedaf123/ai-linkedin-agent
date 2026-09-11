@@ -647,7 +647,19 @@
       },
       "hash": "6f11df4518475bc4c698f277b50d6982",
       "topic": "Implementing AI Techniques for Automated Technical Debt Identification in Codebases"
+    },
+    {
+      "content": "I was setting up a CI/CD pipeline for an AI project last month and ran into a frustrating issue. We decided to automate some parts of our testing using LLMs to generate test cases based on specificati",
+      "timestamp": "2026-09-11T19:29:37.088258",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 102
+      },
+      "hash": "6712f003f7543b82b58d1233561ec850",
+      "topic": "AI-Optimized Workflow Automation for Continuous Integration Processes"
     }
   ],
-  "last_updated": "2026-09-11T09:16:50.321559"
+  "last_updated": "2026-09-11T19:29:37.100053"
 }
