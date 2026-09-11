@@ -638,16 +638,16 @@
     },
     {
       "content": "While I was implementing an AI solution for identifying technical debt in a codebase, I learned a hard lesson about dataset quality. I started with a large dataset from various repositories, thinking ",
-      "timestamp": "2026-09-10T19:29:01.326890",
+      "timestamp": "2026-09-11T09:16:50.316697",
       "engagement": {
         "likes": 1,
         "comments": 0,
         "shares": 0,
-        "impressions": 154
+        "impressions": 168
       },
       "hash": "6f11df4518475bc4c698f277b50d6982",
       "topic": "Implementing AI Techniques for Automated Technical Debt Identification in Codebases"
     }
   ],
-  "last_updated": "2026-09-10T19:29:01.380084"
+  "last_updated": "2026-09-11T09:16:50.321559"
 }
