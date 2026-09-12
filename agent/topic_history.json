@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Optimizing AI Workflows for Real-time Data Streaming Applications",
-    "timestamp": "2026-07-19T07:23:25.202195"
-  },
-  {
     "topic": "Optimizing Neural Network Architectures for Energy Efficiency in AI Development",
     "timestamp": "2026-07-20T07:53:03.812251"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "AI-Optimized Workflow Automation for Continuous Integration Processes",
     "timestamp": "2026-09-11T09:16:52.042221"
+  },
+  {
+    "topic": "GPU-CFR: 80x Faster Counterfactual Regret Minimization by Compiling the Game to Static Dataflow and CUDA Graph Replay",
+    "timestamp": "2026-09-12T08:57:11.241816"
   }
 ]
