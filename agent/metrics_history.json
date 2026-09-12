@@ -659,7 +659,19 @@
       },
       "hash": "6712f003f7543b82b58d1233561ec850",
       "topic": "AI-Optimized Workflow Automation for Continuous Integration Processes"
+    },
+    {
+      "content": "While working on a project that involved Counterfactual Regret Minimization (CFR), I faced a challenge with performance. We were aiming for faster training times, but the calculations were dragging do",
+      "timestamp": "2026-09-12T19:00:19.798524",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 8
+      },
+      "hash": "30d2ee88f1b439fb97fdd2830f843bbb",
+      "topic": "GPU-CFR: 80x Faster Counterfactual Regret Minimization by Compiling the Game to Static Dataflow and CUDA Graph Replay"
     }
   ],
-  "last_updated": "2026-09-12T08:57:10.995544"
+  "last_updated": "2026-09-12T19:00:19.801497"
 }
