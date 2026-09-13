@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Optimizing Neural Network Architectures for Energy Efficiency in AI Development",
-    "timestamp": "2026-07-20T07:53:03.812251"
-  },
-  {
     "topic": "The Many Senses of Visual Similarity: A Text-Prompted Image Perceptual Metric",
     "timestamp": "2026-07-21T07:28:47.113231"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "GPU-CFR: 80x Faster Counterfactual Regret Minimization by Compiling the Game to Static Dataflow and CUDA Graph Replay",
     "timestamp": "2026-09-12T08:57:11.241816"
+  },
+  {
+    "topic": "AI Techniques for Optimizing Neural Network Weight Initialization Strategies",
+    "timestamp": "2026-09-13T09:54:10.081273"
   }
 ]
