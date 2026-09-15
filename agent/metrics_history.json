@@ -674,7 +674,7 @@
     },
     {
       "content": "When I was fine-tuning a neural network for a project, I noticed that the model was not converging as expected. I initially used a standard weight initialization method like Xavier, thinking it would ",
-      "timestamp": "2026-09-14T20:46:52.968516",
+      "timestamp": "2026-09-15T09:42:51.801097",
       "engagement": {
         "likes": 0,
         "comments": 0,
@@ -685,5 +685,5 @@
       "topic": "AI Techniques for Optimizing Neural Network Weight Initialization Strategies"
     }
   ],
-  "last_updated": "2026-09-14T20:46:52.972360"
+  "last_updated": "2026-09-15T09:42:51.804825"
 }
