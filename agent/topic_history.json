@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Neural Network Compression Techniques for Edge Device Deployment",
-    "timestamp": "2026-07-22T07:30:35.254946"
-  },
-  {
     "topic": "Implementing Continuous Learning in AI Model Development for Dynamic Environments",
     "timestamp": "2026-07-23T07:28:20.963150"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Utilizing AI-Driven Simulation for Prototyping Hardware in Development Processes",
     "timestamp": "2026-09-15T09:42:55.118301"
+  },
+  {
+    "topic": "Agentic Societies Need a Social Harness",
+    "timestamp": "2026-09-16T09:36:48.459400"
   }
 ]
