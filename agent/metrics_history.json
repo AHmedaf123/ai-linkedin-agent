@@ -695,7 +695,19 @@
       },
       "hash": "8adbb49df51d1b8155265bff1121e811",
       "topic": "Utilizing AI-Driven Simulation for Prototyping Hardware in Development Processes"
+    },
+    {
+      "content": "I was building a social agent system to help manage interactions in a community. One thing that really tripped me up was the issue of response latency. I initially thought that the quicker I could gen",
+      "timestamp": "2026-09-16T19:52:28.298867",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 9
+      },
+      "hash": "abac7c8e73d72bb88ec1fdf99a4ac738",
+      "topic": "Agentic Societies Need a Social Harness"
     }
   ],
-  "last_updated": "2026-09-16T09:36:48.119854"
+  "last_updated": "2026-09-16T19:52:28.478658"
 }
