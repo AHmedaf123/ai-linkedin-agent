@@ -707,7 +707,19 @@
       },
       "hash": "abac7c8e73d72bb88ec1fdf99a4ac738",
       "topic": "Agentic Societies Need a Social Harness"
+    },
+    {
+      "content": "I was deep into a project focusing on optimizing an embedded system using AI-enhanced feature selection. At first, I thought using all available features would give the best results, so I included eve",
+      "timestamp": "2026-09-17T20:04:16.115933",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 3
+      },
+      "hash": "a87181f17034f4db7699b8c43f9d9974",
+      "topic": "Implementing AI-Enhanced Feature Selection for Embedded Systems Optimization"
     }
   ],
-  "last_updated": "2026-09-17T09:45:08.256154"
+  "last_updated": "2026-09-17T20:04:16.122088"
 }
