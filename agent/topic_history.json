@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Implementing Continuous Learning in AI Model Development for Dynamic Environments",
-    "timestamp": "2026-07-23T07:28:20.963150"
-  },
-  {
     "topic": "3D-Aware VLMs with Implicit and Explicit Geometries",
     "timestamp": "2026-07-24T07:26:33.771307"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Agentic Societies Need a Social Harness",
     "timestamp": "2026-09-16T09:36:48.459400"
+  },
+  {
+    "topic": "Implementing AI-Enhanced Feature Selection for Embedded Systems Optimization",
+    "timestamp": "2026-09-17T09:45:08.940682"
   }
 ]
