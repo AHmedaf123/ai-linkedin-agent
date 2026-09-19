@@ -731,7 +731,19 @@
       },
       "hash": "e99049ef1b19687999ebc0e33353071e",
       "topic": "AI-Powered Predictive Text for Code Documentation Automation"
+    },
+    {
+      "content": "I was working on a robot manipulation project, and we faced a challenge with obstacle detection. Initially, we relied too much on 2D camera feeds for awareness. It seemed straightforward, but the robo",
+      "timestamp": "2026-09-19T19:13:39.790808",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 15
+      },
+      "hash": "ccc803340cf13d0ee8a4e6148f94e1fa",
+      "topic": "Coding Agents with an Obstacle-Aware Harness for Safe Robot Manipulation"
     }
   ],
-  "last_updated": "2026-09-19T09:05:44.347181"
+  "last_updated": "2026-09-19T19:13:39.795698"
 }
