@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Optimizing Hyperparameter Tuning for AI Models in Drug Discovery",
-    "timestamp": "2026-07-25T07:11:29.830964"
-  },
-  {
     "topic": "Incremental Model Updates for AI in Rapid Prototyping Environments",
     "timestamp": "2026-07-26T07:31:52.197509"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "AI-Powered Predictive Text for Code Documentation Automation",
     "timestamp": "2026-09-18T09:18:48.057536"
+  },
+  {
+    "topic": "Coding Agents with an Obstacle-Aware Harness for Safe Robot Manipulation",
+    "timestamp": "2026-09-19T09:05:44.718083"
   }
 ]
