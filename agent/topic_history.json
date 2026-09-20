@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Incremental Model Updates for AI in Rapid Prototyping Environments",
-    "timestamp": "2026-07-26T07:31:52.197509"
-  },
-  {
     "topic": "SM4RT: Learning Structured Motion Geometry for 4D Reconstruction",
     "timestamp": "2026-07-27T08:23:21.264485"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Coding Agents with an Obstacle-Aware Harness for Safe Robot Manipulation",
     "timestamp": "2026-09-19T09:05:44.718083"
+  },
+  {
+    "topic": "AI-Driven Techniques for Efficient Hyperparameter Tuning in Neural Networks",
+    "timestamp": "2026-09-20T09:32:13.601341"
   }
 ]

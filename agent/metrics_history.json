@@ -734,16 +734,16 @@
     },
     {
       "content": "I was working on a robot manipulation project, and we faced a challenge with obstacle detection. Initially, we relied too much on 2D camera feeds for awareness. It seemed straightforward, but the robo",
-      "timestamp": "2026-09-19T19:13:39.790808",
+      "timestamp": "2026-09-20T09:32:12.612753",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 15
+        "impressions": 22
       },
       "hash": "ccc803340cf13d0ee8a4e6148f94e1fa",
       "topic": "Coding Agents with an Obstacle-Aware Harness for Safe Robot Manipulation"
     }
   ],
-  "last_updated": "2026-09-19T19:13:39.795698"
+  "last_updated": "2026-09-20T09:32:12.715012"
 }
