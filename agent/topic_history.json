@@ -1,9 +1,5 @@
 [
   {
-    "topic": "SM4RT: Learning Structured Motion Geometry for 4D Reconstruction",
-    "timestamp": "2026-07-27T08:23:21.264485"
-  },
-  {
     "topic": "AI-Enhanced Code Review Tools for Software Engineering Teams",
     "timestamp": "2026-07-28T07:34:09.976877"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "AI-Driven Techniques for Efficient Hyperparameter Tuning in Neural Networks",
     "timestamp": "2026-09-20T09:32:13.601341"
+  },
+  {
+    "topic": "AI Techniques for Real-Time Data Quality Assessment in Model Training",
+    "timestamp": "2026-09-22T09:34:08.751829"
   }
 ]
