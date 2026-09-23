@@ -767,7 +767,19 @@
       },
       "hash": "2eb7cef7e6543bf67edfc46738c798c9",
       "topic": "AI Techniques for Real-Time Data Quality Assessment in Model Training"
+    },
+    {
+      "content": "I found that sharing information between decentralized agents can be tricky, especially when dealing with delays. Early in my work on a team decision-making system, I assumed that just waiting for dat",
+      "timestamp": "2026-09-23T19:59:53.608126",
+      "engagement": {
+        "likes": 5,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 67
+      },
+      "hash": "5186e97828364aa78222a5047137a023",
+      "topic": "A Decentralized Partially Observable Team Decision Methodology with Delayed Information Sharing"
     }
   ],
-  "last_updated": "2026-09-23T09:39:30.193314"
+  "last_updated": "2026-09-23T19:59:53.612006"
 }
