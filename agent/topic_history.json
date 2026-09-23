@@ -1,9 +1,5 @@
 [
   {
-    "topic": "AI-Enhanced Code Review Tools for Software Engineering Teams",
-    "timestamp": "2026-07-28T07:34:09.976877"
-  },
-  {
     "topic": "Integrating Reinforcement Learning for Automated Software Testing Solutions",
     "timestamp": "2026-07-29T07:38:35.277173"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "AI Techniques for Real-Time Data Quality Assessment in Model Training",
     "timestamp": "2026-09-22T09:34:08.751829"
+  },
+  {
+    "topic": "A Decentralized Partially Observable Team Decision Methodology with Delayed Information Sharing",
+    "timestamp": "2026-09-23T09:39:30.527898"
   }
 ]
