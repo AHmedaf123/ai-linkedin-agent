@@ -779,7 +779,19 @@
       },
       "hash": "5186e97828364aa78222a5047137a023",
       "topic": "A Decentralized Partially Observable Team Decision Methodology with Delayed Information Sharing"
+    },
+    {
+      "content": "While working on a federated learning project for healthcare data, I ran into an interesting challenge with data privacy. We were using TensorFlow Federated to build our model. Initially, I assumed th",
+      "timestamp": "2026-09-24T20:17:45.927575",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 129
+      },
+      "hash": "6176fe56307b0e8c85f837d60462b6ba",
+      "topic": "Using Federated Learning for Secure AI Model Training in Healthcare"
     }
   ],
-  "last_updated": "2026-09-24T09:38:46.202322"
+  "last_updated": "2026-09-24T20:17:45.930298"
 }
