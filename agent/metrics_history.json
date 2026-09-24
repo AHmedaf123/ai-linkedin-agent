@@ -770,16 +770,16 @@
     },
     {
       "content": "I found that sharing information between decentralized agents can be tricky, especially when dealing with delays. Early in my work on a team decision-making system, I assumed that just waiting for dat",
-      "timestamp": "2026-09-23T19:59:53.608126",
+      "timestamp": "2026-09-24T09:38:46.083025",
       "engagement": {
         "likes": 5,
         "comments": 0,
         "shares": 0,
-        "impressions": 67
+        "impressions": 70
       },
       "hash": "5186e97828364aa78222a5047137a023",
       "topic": "A Decentralized Partially Observable Team Decision Methodology with Delayed Information Sharing"
     }
   ],
-  "last_updated": "2026-09-23T19:59:53.612006"
+  "last_updated": "2026-09-24T09:38:46.202322"
 }
