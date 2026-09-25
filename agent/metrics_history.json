@@ -782,16 +782,16 @@
     },
     {
       "content": "While working on a federated learning project for healthcare data, I ran into an interesting challenge with data privacy. We were using TensorFlow Federated to build our model. Initially, I assumed th",
-      "timestamp": "2026-09-24T20:17:45.927575",
+      "timestamp": "2026-09-25T09:56:30.161748",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 129
+        "impressions": 136
       },
       "hash": "6176fe56307b0e8c85f837d60462b6ba",
       "topic": "Using Federated Learning for Secure AI Model Training in Healthcare"
     }
   ],
-  "last_updated": "2026-09-24T20:17:45.930298"
+  "last_updated": "2026-09-25T09:56:30.198452"
 }
