@@ -791,7 +791,19 @@
       },
       "hash": "6176fe56307b0e8c85f837d60462b6ba",
       "topic": "Using Federated Learning for Secure AI Model Training in Healthcare"
+    },
+    {
+      "content": "I was testing an automated UI with reinforcement learning recently, and I hit a snag with how to define the rewards. My initial approach was to reward only successful actions, like clicking the right ",
+      "timestamp": "2026-09-25T20:18:53.973249",
+      "engagement": {
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "impressions": 186
+      },
+      "hash": "4afc5092e29a61a0b3090afaba28c0a3",
+      "topic": "Leveraging Reinforcement Learning for Automated UI Testing in AI Development"
     }
   ],
-  "last_updated": "2026-09-25T09:56:30.198452"
+  "last_updated": "2026-09-25T20:18:53.976330"
 }
