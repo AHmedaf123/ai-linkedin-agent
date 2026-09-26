@@ -794,16 +794,16 @@
     },
     {
       "content": "I was testing an automated UI with reinforcement learning recently, and I hit a snag with how to define the rewards. My initial approach was to reward only successful actions, like clicking the right ",
-      "timestamp": "2026-09-25T20:18:53.973249",
+      "timestamp": "2026-09-26T09:38:46.804852",
       "engagement": {
         "likes": 0,
         "comments": 0,
         "shares": 0,
-        "impressions": 186
+        "impressions": 199
       },
       "hash": "4afc5092e29a61a0b3090afaba28c0a3",
       "topic": "Leveraging Reinforcement Learning for Automated UI Testing in AI Development"
     }
   ],
-  "last_updated": "2026-09-25T20:18:53.976330"
+  "last_updated": "2026-09-26T09:38:46.808045"
 }

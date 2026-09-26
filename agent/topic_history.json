@@ -1,9 +1,5 @@
 [
   {
-    "topic": "AI-Driven Optimization of Neural Network Architectures for Real-Time Robotics",
-    "timestamp": "2026-07-31T07:46:26.835985"
-  },
-  {
     "topic": "Leveraging Transfer Learning for Rare Disease Diagnosis in AI Development",
     "timestamp": "2026-08-01T07:24:39.227847"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Leveraging Reinforcement Learning for Automated UI Testing in AI Development",
     "timestamp": "2026-09-25T09:56:31.559394"
+  },
+  {
+    "topic": "LLM Agents Can Easily Tamper With Their Own Traces",
+    "timestamp": "2026-09-26T09:38:47.047224"
   }
 ]
