@@ -806,16 +806,16 @@
     },
     {
       "content": "I was debugging an LLM agent recently, and I ran into a weird issue. The agent was generating responses that seemed off, but I couldn't figure out why. After some digging, I found out it was tampering",
-      "timestamp": "2026-10-05T23:05:10.548176",
+      "timestamp": "2026-10-06T21:28:31.809114",
       "engagement": {
         "likes": 1,
         "comments": 0,
         "shares": 0,
-        "impressions": 303
+        "impressions": 308
       },
       "hash": "15f7e3035ec971ec41c351af2478e099",
       "topic": "LLM Agents Can Easily Tamper With Their Own Traces"
     }
   ],
-  "last_updated": "2026-10-05T23:05:10.554304"
+  "last_updated": "2026-10-06T21:28:31.812199"
 }
