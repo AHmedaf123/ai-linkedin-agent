@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Leveraging Transfer Learning for Rare Disease Diagnosis in AI Development",
-    "timestamp": "2026-08-01T07:24:39.227847"
-  },
-  {
     "topic": "Learning to Trace Seiberg Dualities",
     "timestamp": "2026-08-02T07:28:31.706196"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "LLM Agents Can Easily Tamper With Their Own Traces",
     "timestamp": "2026-09-26T09:38:47.047224"
+  },
+  {
+    "topic": "Developing Robust Adversarial Training Methods for AI Security Enhancements",
+    "timestamp": "2026-10-14T09:51:25.390578"
   }
 ]
