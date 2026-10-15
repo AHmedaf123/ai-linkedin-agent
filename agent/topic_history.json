@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Learning to Trace Seiberg Dualities",
-    "timestamp": "2026-08-02T07:28:31.706196"
-  },
-  {
     "topic": "Using AI to Automate Hyperparameter Optimization in Chemical Simulations",
     "timestamp": "2026-08-03T08:22:02.570795"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Developing Robust Adversarial Training Methods for AI Security Enhancements",
     "timestamp": "2026-10-14T09:51:25.390578"
+  },
+  {
+    "topic": "Utilizing AI for Predictive Analytics in Software Maintenance Scheduling",
+    "timestamp": "2026-10-15T09:32:11.526963"
   }
 ]
