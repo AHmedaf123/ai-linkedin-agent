@@ -1,9 +1,5 @@
 [
   {
-    "topic": "AI Techniques for Real-Time Anomaly Detection in Software Systems",
-    "timestamp": "2026-08-04T07:31:38.899310"
-  },
-  {
     "topic": "TurnSight: Turn-Level Hindsight Self-Distillation for Tool-Integrated Reasoning",
     "timestamp": "2026-08-05T07:33:49.176287"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "LIBERO-PeRM: Benchmarking Personalized Robotic Manipulation",
     "timestamp": "2026-10-16T09:24:37.522311"
+  },
+  {
+    "topic": "Integrating AI for Enhanced Cybersecurity in IoT Device Networks",
+    "timestamp": "2026-10-17T08:56:51.581477"
   }
 ]
