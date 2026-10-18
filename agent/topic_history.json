@@ -1,9 +1,5 @@
 [
   {
-    "topic": "TurnSight: Turn-Level Hindsight Self-Distillation for Tool-Integrated Reasoning",
-    "timestamp": "2026-08-05T07:33:49.176287"
-  },
-  {
     "topic": "Using AI for Adaptive Load Balancing in Cloud Infrastructure",
     "timestamp": "2026-08-06T07:34:28.221546"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Integrating AI for Enhanced Cybersecurity in IoT Device Networks",
     "timestamp": "2026-10-17T08:56:51.581477"
+  },
+  {
+    "topic": "Optimizing AI Model Performance with Domain-Specific Data Augmentation Techniques",
+    "timestamp": "2026-10-18T09:15:00.041195"
   }
 ]
