@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Using AI for Adaptive Load Balancing in Cloud Infrastructure",
-    "timestamp": "2026-08-06T07:34:28.221546"
-  },
-  {
     "topic": "Leveraging AI for Automated Code Refactoring in Software Development",
     "timestamp": "2026-08-07T06:05:46.273025"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Optimizing AI Model Performance with Domain-Specific Data Augmentation Techniques",
     "timestamp": "2026-10-18T09:15:00.041195"
+  },
+  {
+    "topic": "Text-to-Image Generative Modeling Without Language Pretraining",
+    "timestamp": "2026-10-20T09:44:07.736028"
   }
 ]
