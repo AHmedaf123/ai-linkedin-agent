@@ -1,9 +1,5 @@
 [
   {
-    "topic": "Building Custom AI Model Deployment Pipelines with Kubernetes",
-    "timestamp": "2026-08-09T05:41:55.273804"
-  },
-  {
     "topic": "AI Techniques for Enhancing Data Annotation in ML Model Training",
     "timestamp": "2026-08-10T06:07:28.527884"
   },
@@ -198,5 +194,9 @@
   {
     "topic": "Implementing AI-Driven Code Review Automation for Enhanced Software Quality",
     "timestamp": "2026-10-22T09:45:57.194598"
+  },
+  {
+    "topic": "Sensorimotor Alignment: A Platonic Proxy for Embodied Policy Success",
+    "timestamp": "2026-10-23T09:41:17.010066"
   }
 ]
